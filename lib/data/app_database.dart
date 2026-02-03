@@ -5,15 +5,22 @@ part 'app_database.g.dart';
 class WorkoutDefinitions extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
-  TextColumn get muscleGroup => text().nullable()();
+  IntColumn get muscleGroupId =>
+      integer().nullable().references(MuscleGroups, #id)();
   BoolColumn get isCustom => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+class MuscleGroups extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
 }
 
 class Exercises extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
-  TextColumn get muscleGroup => text().nullable()();
+  IntColumn get muscleGroupId =>
+      integer().nullable().references(MuscleGroups, #id)();
   TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
@@ -26,9 +33,9 @@ class WorkoutExercises extends Table {
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   @override
-  Set<Column> get uniqueKeys => {
+  List<Set<Column>> get uniqueKeys => [
         {workoutDefinitionId, exerciseId},
-      };
+      ];
 }
 
 class WorkoutSessions extends Table {
@@ -63,6 +70,7 @@ class SetEntries extends Table {
 @DriftDatabase(
   tables: [
     WorkoutDefinitions,
+    MuscleGroups,
     Exercises,
     WorkoutExercises,
     WorkoutSessions,
