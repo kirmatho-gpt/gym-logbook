@@ -159,112 +159,122 @@ class _DebugDatabaseScreenState extends State<DebugDatabaseScreen> {
       appBar: AppBar(
         title: const Text('Debug Database'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DropdownButtonFormField<_DebugTable>(
-              value: _selectedTable,
-              items: const [
-                DropdownMenuItem(
-                  value: _DebugTable.muscleGroups,
-                  child: Text('Muscle groups'),
-                ),
-                DropdownMenuItem(
-                  value: _DebugTable.exercises,
-                  child: Text('Exercises'),
-                ),
-              ],
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _selectedTable = value;
-                });
-              },
-              decoration: const InputDecoration(
-                labelText: 'Table to populate',
-                border: OutlineInputBorder(),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<_DebugTable>(
+                    value: _selectedTable,
+                    items: const [
+                      DropdownMenuItem(
+                        value: _DebugTable.muscleGroups,
+                        child: Text('Muscle groups'),
+                      ),
+                      DropdownMenuItem(
+                        value: _DebugTable.exercises,
+                        child: Text('Exercises'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _selectedTable = value;
+                      });
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Table to populate',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_selectedTable == _DebugTable.muscleGroups) ...[
+                    TextField(
+                      controller: _muscleGroupNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Muscle group name',
+                        border: OutlineInputBorder(),
+                      ),
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _insertMuscleGroup(),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: _insertMuscleGroup,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Insert muscle group'),
+                    ),
+                  ] else ...[
+                    TextField(
+                      controller: _exerciseNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Exercise name',
+                        border: OutlineInputBorder(),
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _exerciseMuscleGroupIdController,
+                      decoration: const InputDecoration(
+                        labelText: 'Muscle group id',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _exerciseNotesController,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes',
+                        border: OutlineInputBorder(),
+                      ),
+                      textInputAction: TextInputAction.next,
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _exerciseCreatedAtController,
+                      decoration: const InputDecoration(
+                        labelText: 'Created at (ISO-8601)',
+                        border: OutlineInputBorder(),
+                      ),
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _insertExercise(),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: _insertExercise,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Insert exercise'),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  FilledButton.tonalIcon(
+                    onPressed: _wipeDatabase,
+                    icon: const Icon(Icons.delete_forever),
+                    label: const Text('Wipe database'),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    _selectedTable == _DebugTable.muscleGroups
+                        ? 'Saved muscle groups'
+                        : 'Saved exercises',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            if (_selectedTable == _DebugTable.muscleGroups) ...[
-              TextField(
-                controller: _muscleGroupNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Muscle group name',
-                  border: OutlineInputBorder(),
-                ),
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _insertMuscleGroup(),
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _insertMuscleGroup,
-                icon: const Icon(Icons.add),
-                label: const Text('Insert muscle group'),
-              ),
-            ] else ...[
-              TextField(
-                controller: _exerciseNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Exercise name',
-                  border: OutlineInputBorder(),
-                ),
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _exerciseMuscleGroupIdController,
-                decoration: const InputDecoration(
-                  labelText: 'Muscle group id',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _exerciseNotesController,
-                decoration: const InputDecoration(
-                  labelText: 'Notes',
-                  border: OutlineInputBorder(),
-                ),
-                textInputAction: TextInputAction.next,
-                maxLines: 2,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _exerciseCreatedAtController,
-                decoration: const InputDecoration(
-                  labelText: 'Created at (ISO-8601)',
-                  border: OutlineInputBorder(),
-                ),
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _insertExercise(),
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _insertExercise,
-                icon: const Icon(Icons.add),
-                label: const Text('Insert exercise'),
-              ),
-            ],
-            const SizedBox(height: 24),
-            FilledButton.tonalIcon(
-              onPressed: _wipeDatabase,
-              icon: const Icon(Icons.delete_forever),
-              label: const Text('Wipe database'),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              _selectedTable == _DebugTable.muscleGroups
-                  ? 'Saved muscle groups'
-                  : 'Saved exercises',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Expanded(
+          ),
+          SliverFillRemaining(
+            hasScrollBody: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _selectedTable == _DebugTable.muscleGroups
                   ? StreamBuilder<List<MuscleGroup>>(
                       stream: _database.select(_database.muscleGroups).watch(),
@@ -284,17 +294,28 @@ class _DebugDatabaseScreenState extends State<DebugDatabaseScreen> {
                           );
                         }
 
-                        return ListView.separated(
-                          itemCount: muscleGroups.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final muscleGroup = muscleGroups[index];
-                            return ListTile(
-                              title: Text(muscleGroup.name),
-                              subtitle: Text('ID: ${muscleGroup.id}'),
-                            );
-                          },
+                        return Scrollbar(
+                          child: SingleChildScrollView(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: DataTable(
+                                columns: const [
+                                  DataColumn(label: Text('ID')),
+                                  DataColumn(label: Text('Name')),
+                                ],
+                                rows: muscleGroups
+                                    .map(
+                                      (group) => DataRow(
+                                        cells: [
+                                          DataCell(Text(group.id.toString())),
+                                          DataCell(Text(group.name)),
+                                        ],
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
+                          ),
                         );
                       },
                     )
@@ -316,32 +337,59 @@ class _DebugDatabaseScreenState extends State<DebugDatabaseScreen> {
                           );
                         }
 
-                        return ListView.separated(
-                          itemCount: exercises.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final exercise = exercises[index];
-                            final subtitleLines = [
-                              'ID: ${exercise.id}',
-                              if (exercise.muscleGroupId != null)
-                                'Muscle group id: ${exercise.muscleGroupId}',
-                              if ((exercise.notes ?? '').isNotEmpty)
-                                'Notes: ${exercise.notes}',
-                              'Created at: ${exercise.createdAt.toIso8601String()}',
-                            ];
-
-                            return ListTile(
-                              title: Text(exercise.name),
-                              subtitle: Text(subtitleLines.join('\n')),
-                            );
-                          },
+                        return Scrollbar(
+                          child: SingleChildScrollView(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: DataTable(
+                                columns: const [
+                                  DataColumn(label: Text('ID')),
+                                  DataColumn(label: Text('Name')),
+                                  DataColumn(label: Text('Muscle group id')),
+                                  DataColumn(label: Text('Notes')),
+                                  DataColumn(label: Text('Created at')),
+                                ],
+                                rows: exercises
+                                    .map(
+                                      (exercise) => DataRow(
+                                        cells: [
+                                          DataCell(
+                                            Text(exercise.id.toString()),
+                                          ),
+                                          DataCell(Text(exercise.name)),
+                                          DataCell(
+                                            Text(
+                                              exercise.muscleGroupId
+                                                      ?.toString() ??
+                                                  '-',
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              (exercise.notes ?? '').isEmpty
+                                                  ? '-'
+                                                  : exercise.notes!,
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              exercise.createdAt
+                                                  .toIso8601String(),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
+                          ),
                         );
                       },
                     ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
