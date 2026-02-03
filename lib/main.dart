@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'data/app_database.dart';
 import 'data/repositories/exercise_repository.dart';
 import 'debug/debug_database_screen.dart';
+import 'screens/history_screen.dart';
+import 'screens/start_workout_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +24,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late final ExerciseRepository _exerciseRepository =
       ExerciseRepository(widget.database);
+  int _selectedIndex = 0;
 
   @override
   void dispose() {
@@ -36,8 +39,88 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: DebugDatabaseScreen(
-        exerciseRepository: _exerciseRepository,
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Gym Logbook'),
+        ),
+        body: Row(
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 600) {
+                  return const SizedBox.shrink();
+                }
+
+                return NavigationRail(
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: (index) {
+                    setState(() {
+                      _selectedIndex = index;
+                    });
+                  },
+                  labelType: NavigationRailLabelType.all,
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.fitness_center),
+                      label: Text('Start Workout'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.history),
+                      label: Text('History'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.bug_report),
+                      label: Text('Debug'),
+                    ),
+                  ],
+                );
+              },
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: [
+                  StartWorkoutScreen(database: widget.database),
+                  const HistoryScreen(),
+                  DebugDatabaseScreen(
+                    exerciseRepository: _exerciseRepository,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 600) {
+              return const SizedBox.shrink();
+            }
+
+            return NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.fitness_center),
+                  label: 'Start Workout',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.history),
+                  label: 'History',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.bug_report),
+                  label: 'Debug',
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
