@@ -98,4 +98,12 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  static Future<void> wipeFile() async {
+    final dbFolder = await getApplicationDocumentsDirectory();
+    final file = File(p.join(dbFolder.path, 'gym_logbook.sqlite'));
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
 }
