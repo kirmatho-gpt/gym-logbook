@@ -26,6 +26,8 @@ class _DebugDatabaseScreenState extends State<DebugDatabaseScreen> {
       TextEditingController();
   final TextEditingController _exerciseCreatedAtController =
       TextEditingController();
+  final ScrollController _tableVerticalScrollController = ScrollController();
+  final ScrollController _tableHorizontalScrollController = ScrollController();
 
   _DebugTable _selectedTable = _DebugTable.muscleGroups;
 
@@ -42,6 +44,8 @@ class _DebugDatabaseScreenState extends State<DebugDatabaseScreen> {
     _exerciseMuscleGroupIdController.dispose();
     _exerciseNotesController.dispose();
     _exerciseCreatedAtController.dispose();
+    _tableVerticalScrollController.dispose();
+    _tableHorizontalScrollController.dispose();
     super.dispose();
   }
 
@@ -295,8 +299,11 @@ class _DebugDatabaseScreenState extends State<DebugDatabaseScreen> {
                         }
 
                         return Scrollbar(
+                          controller: _tableVerticalScrollController,
                           child: SingleChildScrollView(
+                            controller: _tableVerticalScrollController,
                             child: SingleChildScrollView(
+                              controller: _tableHorizontalScrollController,
                               scrollDirection: Axis.horizontal,
                               child: DataTable(
                                 columns: const [
@@ -338,8 +345,11 @@ class _DebugDatabaseScreenState extends State<DebugDatabaseScreen> {
                         }
 
                         return Scrollbar(
+                          controller: _tableVerticalScrollController,
                           child: SingleChildScrollView(
+                            controller: _tableVerticalScrollController,
                             child: SingleChildScrollView(
+                              controller: _tableHorizontalScrollController,
                               scrollDirection: Axis.horizontal,
                               child: DataTable(
                                 columns: const [

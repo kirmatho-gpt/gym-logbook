@@ -106,4 +106,79 @@ class AppDatabase extends _$AppDatabase {
       await file.delete();
     }
   }
+
+  Future<int> createWorkoutForMuscleGroup({
+    required int muscleGroupId,
+    required List<int> exerciseIds,
+    DateTime? performedAt,
+  }) async {
+    return transaction(() async {
+      final workoutDefinitionId =
+          await _getOrCreateWorkoutDefinitionForMuscleGroup(muscleGroupId);
+
+      await batch((batch) {
+        batch.insertAll(
+          workoutExercises,
+          [
+            for (var i = 0; i < exerciseIds.length; i++)
+              WorkoutExercisesCompanion.insert(
+                workoutDefinitionId: workoutDefinitionId,
+                exerciseId: exerciseIds[i],
+                sortOrder: Value(i),
+              ),
+          ],
+          mode: InsertMode.insertOrIgnore,
+        );
+      });
+
+      final workoutSessionId = await into(workoutSessions).insert(
+        WorkoutSessionsCompanion.insert(
+          workoutDefinitionId: Value(workoutDefinitionId),
+          performedAt: performedAt ?? DateTime.now(),
+        ),
+      );
+
+      await batch((batch) {
+        batch.insertAll(
+          exerciseEntries,
+          [
+            for (var i = 0; i < exerciseIds.length; i++)
+              ExerciseEntriesCompanion.insert(
+                workoutSessionId: workoutSessionId,
+                exerciseId: exerciseIds[i],
+                sortOrder: Value(i),
+              ),
+          ],
+        );
+      });
+
+      return workoutSessionId;
+    });
+  }
+
+  Future<int> _getOrCreateWorkoutDefinitionForMuscleGroup(
+    int muscleGroupId,
+  ) async {
+    final existingDefinition = await (select(workoutDefinitions)
+          ..where((tbl) => tbl.muscleGroupId.equals(muscleGroupId))
+          ..limit(1))
+        .getSingleOrNull();
+
+    if (existingDefinition != null) {
+      return existingDefinition.id;
+    }
+
+    final muscleGroup = await (select(muscleGroups)
+          ..where((tbl) => tbl.id.equals(muscleGroupId))
+          ..limit(1))
+        .getSingle();
+
+    return into(workoutDefinitions).insert(
+      WorkoutDefinitionsCompanion.insert(
+        name: muscleGroup.name,
+        muscleGroupId: Value(muscleGroupId),
+        isCustom: const Value(false),
+      ),
+    );
+  }
 }

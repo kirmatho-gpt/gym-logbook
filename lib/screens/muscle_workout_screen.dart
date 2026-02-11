@@ -18,6 +18,7 @@ class MuscleWorkoutScreen extends StatefulWidget {
 class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
   int? _selectedMuscleGroupId;
   final Set<int> _selectedExerciseIds = {};
+  bool _isCreatingWorkout = false;
 
   void _selectMuscleGroup(int id) {
     setState(() {
@@ -143,6 +144,54 @@ class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
                         );
                       },
                     ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: _isCreatingWorkout ||
+                        _selectedMuscleGroupId == null ||
+                        _selectedExerciseIds.isEmpty
+                    ? null
+                    : () async {
+                        final muscleGroupId = _selectedMuscleGroupId;
+                        if (muscleGroupId == null) {
+                          return;
+                        }
+
+                        setState(() {
+                          _isCreatingWorkout = true;
+                        });
+
+                        try {
+                          await widget.database.createWorkoutForMuscleGroup(
+                            muscleGroupId: muscleGroupId,
+                            exerciseIds: _selectedExerciseIds.toList(),
+                          );
+
+                          if (!mounted) return;
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Workout started.'),
+                            ),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              _isCreatingWorkout = false;
+                            });
+                          }
+                        }
+                      },
+                child: _isCreatingWorkout
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Start workout'),
+              ),
             ),
           ],
         ),
