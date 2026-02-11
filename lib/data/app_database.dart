@@ -23,28 +23,28 @@ class CurrentWorkoutExerciseData {
     required this.exerciseId,
     required this.exerciseName,
     this.lastPerformedAt,
-    this.lastRepetitions,
-    this.lastWeight,
+    this.lastSetCount,
+    this.lastMaxWeight,
   });
 
   final int exerciseEntryId;
   final int exerciseId;
   final String exerciseName;
   final DateTime? lastPerformedAt;
-  final int? lastRepetitions;
-  final double? lastWeight;
+  final int? lastSetCount;
+  final double? lastMaxWeight;
 }
 
-class ExerciseLastSetData {
-  const ExerciseLastSetData({
+class ExerciseLastPerformanceData {
+  const ExerciseLastPerformanceData({
     required this.performedAt,
-    required this.repetitions,
-    required this.weight,
+    required this.setCount,
+    required this.maxWeight,
   });
 
   final DateTime performedAt;
-  final int repetitions;
-  final double weight;
+  final int setCount;
+  final double maxWeight;
 }
 
 class WorkoutDefinitions extends Table {
@@ -132,6 +132,8 @@ LazyDatabase _openConnection() {
   ],
 )
 class AppDatabase extends _$AppDatabase {
+  static final RegExp _nameCounterSuffixPattern = RegExp(r'^(.*) #(\d+)$');
+
   AppDatabase(super.executor);
 
   AppDatabase.open() : super(_openConnection());
@@ -156,6 +158,12 @@ class AppDatabase extends _$AppDatabase {
     return transaction(() async {
       final workoutDefinitionId =
           await _getOrCreateWorkoutDefinitionForMuscleGroup(muscleGroupId);
+      final baseName = nameOverride?.trim();
+      final resolvedBaseName =
+          (baseName != null && baseName.isNotEmpty) ? baseName : null;
+      final uniqueNameOverride = resolvedBaseName == null
+          ? null
+          : await _buildUniqueWorkoutSessionName(resolvedBaseName);
 
       await batch((batch) {
         batch.insertAll(
@@ -175,9 +183,7 @@ class AppDatabase extends _$AppDatabase {
       final workoutSessionId = await into(workoutSessions).insert(
         WorkoutSessionsCompanion.insert(
           workoutDefinitionId: Value(workoutDefinitionId),
-          nameOverride: Value(nameOverride?.trim().isNotEmpty == true
-              ? nameOverride!.trim()
-              : null),
+          nameOverride: Value(uniqueNameOverride),
           performedAt: performedAt ?? DateTime.now(),
         ),
       );
@@ -198,6 +204,56 @@ class AppDatabase extends _$AppDatabase {
 
       return workoutSessionId;
     });
+  }
+
+  Future<String> _buildUniqueWorkoutSessionName(String baseName) async {
+    final normalizedBaseName = _stripCounterSuffix(baseName);
+    final existingRows = await (select(workoutSessions)
+          ..where((tbl) => tbl.nameOverride.like('$normalizedBaseName%')))
+        .get();
+
+    var hasBaseName = false;
+    var highestCounter = 1;
+    for (final row in existingRows) {
+      final existingName = row.nameOverride?.trim();
+      if (existingName == null || existingName.isEmpty) {
+        continue;
+      }
+      if (existingName == normalizedBaseName) {
+        hasBaseName = true;
+        continue;
+      }
+
+      final match = _nameCounterSuffixPattern.firstMatch(existingName);
+      if (match == null) {
+        continue;
+      }
+
+      final suffixBaseName = match.group(1)?.trim();
+      final suffixCounter = int.tryParse(match.group(2) ?? '');
+      if (suffixBaseName == normalizedBaseName && suffixCounter != null) {
+        if (suffixCounter > highestCounter) {
+          highestCounter = suffixCounter;
+        }
+      }
+    }
+
+    if (!hasBaseName && highestCounter == 1) {
+      return normalizedBaseName;
+    }
+
+    return '$normalizedBaseName #${highestCounter + 1}';
+  }
+
+  String _stripCounterSuffix(String name) {
+    final trimmed = name.trim();
+    final match = _nameCounterSuffixPattern.firstMatch(trimmed);
+    if (match == null) {
+      return trimmed;
+    }
+
+    final base = match.group(1)?.trim();
+    return (base == null || base.isEmpty) ? trimmed : base;
   }
 
   Future<int> _getOrCreateWorkoutDefinitionForMuscleGroup(
@@ -260,7 +316,7 @@ class AppDatabase extends _$AppDatabase {
     for (final row in entryRows) {
       final entry = row.readTable(exerciseEntries);
       final exercise = row.readTable(exercises);
-      final lastSet = await fetchLastSetForExercise(
+      final lastPerformance = await fetchLastPerformanceForExercise(
         exercise.id,
         excludeWorkoutSessionId: workoutSessionId,
       );
@@ -270,9 +326,9 @@ class AppDatabase extends _$AppDatabase {
           exerciseEntryId: entry.id,
           exerciseId: exercise.id,
           exerciseName: exercise.name,
-          lastPerformedAt: lastSet?.performedAt,
-          lastRepetitions: lastSet?.repetitions,
-          lastWeight: lastSet?.weight,
+          lastPerformedAt: lastPerformance?.performedAt,
+          lastSetCount: lastPerformance?.setCount,
+          lastMaxWeight: lastPerformance?.maxWeight,
         ),
       );
     }
@@ -283,15 +339,11 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<ExerciseLastSetData?> fetchLastSetForExercise(
+  Future<ExerciseLastPerformanceData?> fetchLastPerformanceForExercise(
     int exerciseId, {
     int? excludeWorkoutSessionId,
   }) async {
-    final query = select(setEntries).join([
-      innerJoin(
-        exerciseEntries,
-        exerciseEntries.id.equalsExp(setEntries.exerciseEntryId),
-      ),
+    final latestEntryQuery = select(exerciseEntries).join([
       innerJoin(
         workoutSessions,
         workoutSessions.id.equalsExp(exerciseEntries.workoutSessionId),
@@ -300,31 +352,44 @@ class AppDatabase extends _$AppDatabase {
       ..where(exerciseEntries.exerciseId.equals(exerciseId));
 
     if (excludeWorkoutSessionId != null) {
-      query.where(workoutSessions.id.isNotValue(excludeWorkoutSessionId));
+      latestEntryQuery.where(workoutSessions.id.isNotValue(excludeWorkoutSessionId));
     }
 
-    query
+    latestEntryQuery
       ..orderBy([
         OrderingTerm(
           expression: workoutSessions.performedAt,
           mode: OrderingMode.desc,
         ),
-        OrderingTerm(expression: setEntries.setIndex, mode: OrderingMode.desc),
-        OrderingTerm(expression: setEntries.id, mode: OrderingMode.desc),
+        OrderingTerm(expression: exerciseEntries.id, mode: OrderingMode.desc),
       ])
       ..limit(1);
 
-    final row = await query.getSingleOrNull();
-    if (row == null) {
+    final latestEntryRow = await latestEntryQuery.getSingleOrNull();
+    if (latestEntryRow == null) {
       return null;
     }
 
-    final set = row.readTable(setEntries);
-    final session = row.readTable(workoutSessions);
-    return ExerciseLastSetData(
-      performedAt: session.performedAt,
-      repetitions: set.repetitions,
-      weight: set.weight,
+    final latestEntry = latestEntryRow.readTable(exerciseEntries);
+    final latestSession = latestEntryRow.readTable(workoutSessions);
+
+    final setCountExpression = setEntries.id.count();
+    final maxWeightExpression = setEntries.weight.max();
+    final aggregateRow = await (selectOnly(setEntries)
+          ..addColumns([setCountExpression, maxWeightExpression])
+          ..where(setEntries.exerciseEntryId.equals(latestEntry.id)))
+        .getSingle();
+
+    final setCount = aggregateRow.read(setCountExpression);
+    final maxWeight = aggregateRow.read(maxWeightExpression);
+    if (setCount == null || maxWeight == null || setCount <= 0) {
+      return null;
+    }
+
+    return ExerciseLastPerformanceData(
+      performedAt: latestSession.performedAt,
+      setCount: setCount,
+      maxWeight: maxWeight,
     );
   }
 

@@ -46,7 +46,7 @@ class CurrentWorkoutScreen extends StatelessWidget {
                           color: exercise.isFinished
                               ? Colors.green
                               : Colors.transparent,
-                          width: exercise.isFinished ? 2 : 0,
+                          width: exercise.isFinished ? 4 : 0,
                         ),
                       ),
                       child: Padding(
@@ -81,8 +81,6 @@ class CurrentWorkoutScreen extends StatelessWidget {
                               ),
                               child: Row(
                                 children: [
-                                  const Text('Global'),
-                                  const SizedBox(width: 10),
                                   const Text('Sets:'),
                                   IconButton(
                                     onPressed: exercise.isFinished
@@ -147,62 +145,93 @@ class CurrentWorkoutScreen extends StatelessWidget {
 
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
-                                  child: Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 56,
-                                        child: Text('Set ${setIndex + 1}'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isLocked
+                                            ? Colors.green.shade300
+                                            : Colors.transparent,
+                                        width: isLocked ? 1.5 : 0,
                                       ),
-                                      IconButton(
-                                        onPressed: isLocked
-                                            ? null
-                                            : () => controller
-                                                .changeSetRepetitions(
-                                                  exerciseId: exercise.exerciseId,
-                                                  setIndex: setIndex,
-                                                  delta: -1,
-                                                ),
-                                        icon: const Icon(
-                                          Icons.remove_circle_outline,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 56,
+                                          child: Text('Set ${setIndex + 1}'),
                                         ),
-                                      ),
-                                      Text('${setLine.repetitions} reps'),
-                                      if (isLocked)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(left: 8),
-                                          child: Text(
-                                            '@ ${(setLine.validatedWeight ?? exercise.configuredWeight).toStringAsFixed(1)} kg',
+                                        IconButton(
+                                          onPressed: isLocked
+                                              ? null
+                                              : () => controller
+                                                  .changeSetRepetitions(
+                                                    exerciseId: exercise.exerciseId,
+                                                    setIndex: setIndex,
+                                                    delta: -1,
+                                                  ),
+                                          icon: const Icon(
+                                            Icons.remove_circle_outline,
                                           ),
                                         ),
-                                      IconButton(
-                                        onPressed: isLocked
-                                            ? null
-                                            : () => controller
-                                                .changeSetRepetitions(
-                                                  exerciseId: exercise.exerciseId,
-                                                  setIndex: setIndex,
-                                                  delta: 1,
-                                                ),
-                                        icon: const Icon(
-                                          Icons.add_circle_outline,
+                                        Text('${setLine.repetitions} reps'),
+                                        if (isLocked)
+                                          Padding(
+                                            padding:
+                                                const EdgeInsets.only(left: 8),
+                                            child: Text(
+                                              '@ ${(setLine.validatedWeight ?? exercise.configuredWeight).toStringAsFixed(1)} kg',
+                                            ),
+                                          ),
+                                        IconButton(
+                                          onPressed: isLocked
+                                              ? null
+                                              : () => controller
+                                                  .changeSetRepetitions(
+                                                    exerciseId: exercise.exerciseId,
+                                                    setIndex: setIndex,
+                                                    delta: 1,
+                                                  ),
+                                          icon: const Icon(
+                                            Icons.add_circle_outline,
+                                          ),
                                         ),
-                                      ),
-                                      const Spacer(),
-                                      FilledButton(
-                                        onPressed: isLocked ||
-                                                controller.isSavingSet ||
-                                                exercise.isFinished
-                                            ? null
-                                            : () => controller.validateSet(
-                                                  exerciseId: exercise.exerciseId,
-                                                  setIndex: setIndex,
-                                                ),
-                                        child: Text(
-                                          isLocked ? 'Validated' : 'Validate',
+                                        const Spacer(),
+                                        if (exercise.timeSinceLastValidation !=
+                                                null &&
+                                            exercise.timeSinceSetIndex ==
+                                                setIndex)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              right: 10,
+                                            ),
+                                            child: SizedBox(
+                                              width: 110,
+                                              child: Text(
+                                                'Time since ${_formatMmSs(exercise.timeSinceLastValidation!)}',
+                                                textAlign: TextAlign.right,
+                                              ),
+                                            ),
+                                          ),
+                                        FilledButton(
+                                          onPressed: isLocked ||
+                                                  controller.isSavingSet ||
+                                                  exercise.isFinished
+                                              ? null
+                                              : () => controller.validateSet(
+                                                    exerciseId: exercise.exerciseId,
+                                                    setIndex: setIndex,
+                                                  ),
+                                          child: Text(
+                                            isLocked ? 'Validated' : 'Validate',
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 );
                               },
@@ -210,18 +239,35 @@ class CurrentWorkoutScreen extends StatelessWidget {
                             const SizedBox(height: 4),
                             Align(
                               alignment: Alignment.centerRight,
-                              child: FilledButton(
-                                onPressed: exercise.isFinished ||
-                                        controller.isSavingSet
-                                    ? null
-                                    : () => controller.finishExercise(
-                                          exercise.exerciseId,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (exercise.timeSinceLastValidation != null &&
+                                      exercise.timeSinceSetIndex == null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 10),
+                                      child: SizedBox(
+                                        width: 110,
+                                        child: Text(
+                                          'Time since ${_formatMmSs(exercise.timeSinceLastValidation!)}',
+                                          textAlign: TextAlign.right,
                                         ),
-                                child: Text(
-                                  exercise.isFinished
-                                      ? 'Finished'
-                                      : 'Finish Exercise',
-                                ),
+                                      ),
+                                    ),
+                                  FilledButton(
+                                    onPressed: exercise.isFinished ||
+                                            controller.isSavingSet
+                                        ? null
+                                        : () => controller.finishExercise(
+                                              exercise.exerciseId,
+                                            ),
+                                    child: Text(
+                                      exercise.isFinished
+                                          ? 'Finished'
+                                          : 'Finish Exercise',
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -240,15 +286,22 @@ class CurrentWorkoutScreen extends StatelessWidget {
 
   String _formatLastInfo(CurrentWorkoutExerciseState exercise) {
     final performedAt = exercise.lastPerformedAt;
-    final repetitions = exercise.lastRepetitions;
-    final weight = exercise.lastWeight;
+    final setCount = exercise.lastSetCount;
+    final maxWeight = exercise.lastMaxWeight;
 
-    if (performedAt == null || repetitions == null || weight == null) {
+    if (performedAt == null || setCount == null || maxWeight == null) {
       return 'Last time: no history yet';
     }
 
     final date =
         '${performedAt.year.toString().padLeft(4, '0')}-${performedAt.month.toString().padLeft(2, '0')}-${performedAt.day.toString().padLeft(2, '0')}';
-    return 'Last time: $date, $repetitions reps @ ${weight.toStringAsFixed(1)} kg';
+    return 'Last time: $date, $setCount sets, max ${maxWeight.toStringAsFixed(1)} kg';
+  }
+
+  String _formatMmSs(Duration duration) {
+    final totalSeconds = duration.inSeconds;
+    final minutes = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 }

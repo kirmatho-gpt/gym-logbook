@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../data/app_database.dart';
@@ -35,27 +37,37 @@ class CurrentWorkoutExerciseState {
     required this.exerciseId,
     required this.exerciseName,
     this.lastPerformedAt,
-    this.lastRepetitions,
-    this.lastWeight,
+    this.lastSetCount,
+    this.lastMaxWeight,
     this.configuredWeight = 20,
     this.isFinished = false,
+    this.timerStartedAt,
+    this.timeSinceLastValidation,
+    this.timeSinceSetIndex,
+    bool? isTimeSinceRunning = false,
     this.sets = const [
       WorkoutSetState(repetitions: 8),
       WorkoutSetState(repetitions: 8),
       WorkoutSetState(repetitions: 8),
       WorkoutSetState(repetitions: 8),
     ],
-  });
+  }) : _isTimeSinceRunning = isTimeSinceRunning;
 
   final int exerciseEntryId;
   final int exerciseId;
   final String exerciseName;
   final DateTime? lastPerformedAt;
-  final int? lastRepetitions;
-  final double? lastWeight;
+  final int? lastSetCount;
+  final double? lastMaxWeight;
   final double configuredWeight;
   final bool isFinished;
+  final DateTime? timerStartedAt;
+  final Duration? timeSinceLastValidation;
+  final int? timeSinceSetIndex;
+  final bool? _isTimeSinceRunning;
   final List<WorkoutSetState> sets;
+
+  bool get isTimeSinceRunning => _isTimeSinceRunning ?? false;
 
   int get validatedSetCount =>
       sets.where((setLine) => setLine.isValidated).length;
@@ -63,10 +75,17 @@ class CurrentWorkoutExerciseState {
   CurrentWorkoutExerciseState copyWith({
     double? configuredWeight,
     bool? isFinished,
+    DateTime? timerStartedAt,
+    Duration? timeSinceLastValidation,
+    int? timeSinceSetIndex,
+    bool? isTimeSinceRunning,
+    bool clearTimerStartedAt = false,
+    bool clearTimeSinceLastValidation = false,
+    bool clearTimeSinceSetIndex = false,
     List<WorkoutSetState>? sets,
     DateTime? lastPerformedAt,
-    int? lastRepetitions,
-    double? lastWeight,
+    int? lastSetCount,
+    double? lastMaxWeight,
     bool clearLastHistory = false,
   }) {
     return CurrentWorkoutExerciseState(
@@ -75,11 +94,21 @@ class CurrentWorkoutExerciseState {
       exerciseName: exerciseName,
       lastPerformedAt:
           clearLastHistory ? null : (lastPerformedAt ?? this.lastPerformedAt),
-      lastRepetitions:
-          clearLastHistory ? null : (lastRepetitions ?? this.lastRepetitions),
-      lastWeight: clearLastHistory ? null : (lastWeight ?? this.lastWeight),
+      lastSetCount: clearLastHistory ? null : (lastSetCount ?? this.lastSetCount),
+      lastMaxWeight:
+          clearLastHistory ? null : (lastMaxWeight ?? this.lastMaxWeight),
       configuredWeight: configuredWeight ?? this.configuredWeight,
       isFinished: isFinished ?? this.isFinished,
+      timerStartedAt: clearTimerStartedAt
+          ? null
+          : (timerStartedAt ?? this.timerStartedAt),
+      timeSinceLastValidation: clearTimeSinceLastValidation
+          ? null
+          : (timeSinceLastValidation ?? this.timeSinceLastValidation),
+      timeSinceSetIndex: clearTimeSinceSetIndex
+          ? null
+          : (timeSinceSetIndex ?? this.timeSinceSetIndex),
+      isTimeSinceRunning: isTimeSinceRunning ?? this.isTimeSinceRunning,
       sets: sets ?? this.sets,
     );
   }
@@ -89,6 +118,7 @@ class CurrentWorkoutController extends ChangeNotifier {
   CurrentWorkoutController({required AppDatabase database}) : _database = database;
 
   final AppDatabase _database;
+  Timer? _timeSinceTicker;
 
   int? _workoutSessionId;
   String _workoutName = 'Current Workout';
@@ -100,6 +130,12 @@ class CurrentWorkoutController extends ChangeNotifier {
   bool get hasActiveWorkout => _workoutSessionId != null && _exercises.isNotEmpty;
   bool get isSavingSet => _isSavingSet;
   List<CurrentWorkoutExerciseState> get exercises => _exercises;
+
+  @override
+  void dispose() {
+    _timeSinceTicker?.cancel();
+    super.dispose();
+  }
 
   Future<void> startWorkout(int workoutSessionId) async {
     final data = await _database.loadCurrentWorkoutSessionData(workoutSessionId);
@@ -113,9 +149,9 @@ class CurrentWorkoutController extends ChangeNotifier {
           exerciseId: exercise.exerciseId,
           exerciseName: exercise.exerciseName,
           lastPerformedAt: exercise.lastPerformedAt,
-          lastRepetitions: exercise.lastRepetitions,
-          lastWeight: exercise.lastWeight,
-          configuredWeight: exercise.lastWeight ?? 20,
+          lastSetCount: exercise.lastSetCount,
+          lastMaxWeight: exercise.lastMaxWeight,
+          configuredWeight: exercise.lastMaxWeight ?? 20,
           sets: List<WorkoutSetState>.generate(
             4,
             (_) => const WorkoutSetState(repetitions: 8),
@@ -124,11 +160,12 @@ class CurrentWorkoutController extends ChangeNotifier {
         ),
     ];
 
+    _syncTimeSinceTicker();
     notifyListeners();
   }
 
   void setTargetSets(int exerciseId, int setsCount) {
-    _exercises = _exercises
+    _exercises = _freezeRunningTimers(_exercises)
         .map(
           (exercise) {
             if (exercise.exerciseId != exerciseId) {
@@ -167,6 +204,7 @@ class CurrentWorkoutController extends ChangeNotifier {
           },
         )
         .toList(growable: false);
+    _syncTimeSinceTicker();
     notifyListeners();
   }
 
@@ -174,7 +212,7 @@ class CurrentWorkoutController extends ChangeNotifier {
     required int exerciseId,
     required double delta,
   }) {
-    _exercises = _exercises
+    _exercises = _freezeRunningTimers(_exercises)
         .map(
           (exercise) {
             if (exercise.exerciseId != exerciseId) {
@@ -190,6 +228,7 @@ class CurrentWorkoutController extends ChangeNotifier {
           },
         )
         .toList(growable: false);
+    _syncTimeSinceTicker();
     notifyListeners();
   }
 
@@ -198,7 +237,7 @@ class CurrentWorkoutController extends ChangeNotifier {
     required int setIndex,
     required int delta,
   }) {
-    _exercises = _exercises
+    _exercises = _freezeRunningTimers(_exercises)
         .map(
           (exercise) {
             if (exercise.exerciseId != exerciseId ||
@@ -224,6 +263,7 @@ class CurrentWorkoutController extends ChangeNotifier {
           },
         )
         .toList(growable: false);
+    _syncTimeSinceTicker();
     notifyListeners();
   }
 
@@ -264,9 +304,17 @@ class CurrentWorkoutController extends ChangeNotifier {
       _exercises = _exercises
           .map(
             (item) {
-              if (item.exerciseId != exerciseId ||
-                  setIndex < 0 ||
-                  setIndex >= item.sets.length) {
+              if (item.exerciseId != exerciseId) {
+                if (!item.isTimeSinceRunning) {
+                  return item;
+                }
+                return item.copyWith(
+                  timeSinceLastValidation: _finalizeElapsed(item),
+                  isTimeSinceRunning: false,
+                  clearTimerStartedAt: true,
+                );
+              }
+              if (setIndex < 0 || setIndex >= item.sets.length) {
                 return item;
               }
 
@@ -278,10 +326,15 @@ class CurrentWorkoutController extends ChangeNotifier {
 
               return item.copyWith(
                 sets: updatedSets,
+                timerStartedAt: DateTime.now(),
+                timeSinceLastValidation: Duration.zero,
+                timeSinceSetIndex: setIndex,
+                isTimeSinceRunning: true,
               );
             },
           )
           .toList(growable: false);
+      _syncTimeSinceTicker();
     } finally {
       _isSavingSet = false;
       notifyListeners();
@@ -302,38 +355,33 @@ class CurrentWorkoutController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      for (var i = 0; i < exercise.sets.length; i++) {
-        final setLine = exercise.sets[i];
-        if (setLine.isValidated) {
-          continue;
-        }
-        await _database.addSetForExerciseEntry(
-          exerciseEntryId: exercise.exerciseEntryId,
-          repetitions: setLine.repetitions,
-          weight: exercise.configuredWeight,
-        );
-      }
-
       _exercises = _exercises
           .map(
             (item) {
               if (item.exerciseId != exerciseId) {
-                return item;
+                if (!item.isTimeSinceRunning) {
+                  return item;
+                }
+                return item.copyWith(
+                  timeSinceLastValidation: _finalizeElapsed(item),
+                  isTimeSinceRunning: false,
+                  clearTimerStartedAt: true,
+                );
               }
               return item.copyWith(
                 isFinished: true,
-                sets: [
-                  for (final setLine in item.sets)
-                    setLine.copyWith(
-                      isValidated: true,
-                      validatedWeight:
-                          setLine.validatedWeight ?? item.configuredWeight,
-                    ),
-                ],
+                timerStartedAt: DateTime.now(),
+                timeSinceLastValidation: Duration.zero,
+                clearTimeSinceSetIndex: true,
+                isTimeSinceRunning: true,
+                sets: item.sets
+                    .where((setLine) => setLine.isValidated)
+                    .toList(growable: false),
               );
             },
           )
           .toList(growable: false);
+      _syncTimeSinceTicker();
     } finally {
       _isSavingSet = false;
       notifyListeners();
@@ -341,9 +389,73 @@ class CurrentWorkoutController extends ChangeNotifier {
   }
 
   void clear() {
+    _timeSinceTicker?.cancel();
+    _timeSinceTicker = null;
     _workoutSessionId = null;
     _workoutName = 'Current Workout';
     _exercises = const [];
     notifyListeners();
+  }
+
+  Duration? _finalizeElapsed(CurrentWorkoutExerciseState exercise) {
+    final existing = exercise.timeSinceLastValidation;
+    if (exercise.isTimeSinceRunning && exercise.timerStartedAt != null) {
+      return DateTime.now().difference(exercise.timerStartedAt!);
+    }
+    return existing;
+  }
+
+  List<CurrentWorkoutExerciseState> _freezeRunningTimers(
+    List<CurrentWorkoutExerciseState> source,
+  ) {
+    return source
+        .map((exercise) {
+          if (!exercise.isTimeSinceRunning) {
+            return exercise;
+          }
+          return exercise.copyWith(
+            timeSinceLastValidation: _finalizeElapsed(exercise),
+            isTimeSinceRunning: false,
+            clearTimerStartedAt: true,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  void _syncTimeSinceTicker() {
+    final hasRunningTimer = _exercises.any((exercise) => exercise.isTimeSinceRunning);
+    if (!hasRunningTimer) {
+      _timeSinceTicker?.cancel();
+      _timeSinceTicker = null;
+      return;
+    }
+
+    _timeSinceTicker ??=
+        Timer.periodic(const Duration(seconds: 1), (_) => _tickTimeSince());
+  }
+
+  void _tickTimeSince() {
+    var hasChanges = false;
+    final now = DateTime.now();
+    _exercises = _exercises
+        .map((exercise) {
+          if (!exercise.isTimeSinceRunning || exercise.timerStartedAt == null) {
+            return exercise;
+          }
+
+          final nextElapsed = now.difference(exercise.timerStartedAt!);
+          if (exercise.timeSinceLastValidation == nextElapsed) {
+            return exercise;
+          }
+
+          hasChanges = true;
+          return exercise.copyWith(timeSinceLastValidation: nextElapsed);
+        })
+        .toList(growable: false);
+
+    if (hasChanges) {
+      notifyListeners();
+    }
+    _syncTimeSinceTicker();
   }
 }
