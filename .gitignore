@@ -11,6 +11,18 @@ pubspec.lock
 # If you don't generate documentation locally you can remove this line.
 doc/api/
 
+# additional ignores 
+lib/data/app_database.g.dart
+/.idea
+/.DS_Store
+/android/.DS_Store
+/ios/.DS_Store
+/linux/.DS_Store
+/macos/.DS_Store
+/windows/.DS_Store
+/lib/.DS_Store
+/lib/data/.DS_Store
+
 # dotenv environment variables file
 .env*
 
