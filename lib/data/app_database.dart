@@ -7,6 +7,46 @@ import 'package:path_provider/path_provider.dart';
 
 part 'app_database.g.dart';
 
+class CurrentWorkoutSessionData {
+  const CurrentWorkoutSessionData({
+    required this.workoutName,
+    required this.exercises,
+  });
+
+  final String workoutName;
+  final List<CurrentWorkoutExerciseData> exercises;
+}
+
+class CurrentWorkoutExerciseData {
+  const CurrentWorkoutExerciseData({
+    required this.exerciseEntryId,
+    required this.exerciseId,
+    required this.exerciseName,
+    this.lastPerformedAt,
+    this.lastRepetitions,
+    this.lastWeight,
+  });
+
+  final int exerciseEntryId;
+  final int exerciseId;
+  final String exerciseName;
+  final DateTime? lastPerformedAt;
+  final int? lastRepetitions;
+  final double? lastWeight;
+}
+
+class ExerciseLastSetData {
+  const ExerciseLastSetData({
+    required this.performedAt,
+    required this.repetitions,
+    required this.weight,
+  });
+
+  final DateTime performedAt;
+  final int repetitions;
+  final double weight;
+}
+
 class WorkoutDefinitions extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -110,6 +150,7 @@ class AppDatabase extends _$AppDatabase {
   Future<int> createWorkoutForMuscleGroup({
     required int muscleGroupId,
     required List<int> exerciseIds,
+    String? nameOverride,
     DateTime? performedAt,
   }) async {
     return transaction(() async {
@@ -134,6 +175,9 @@ class AppDatabase extends _$AppDatabase {
       final workoutSessionId = await into(workoutSessions).insert(
         WorkoutSessionsCompanion.insert(
           workoutDefinitionId: Value(workoutDefinitionId),
+          nameOverride: Value(nameOverride?.trim().isNotEmpty == true
+              ? nameOverride!.trim()
+              : null),
           performedAt: performedAt ?? DateTime.now(),
         ),
       );
@@ -178,6 +222,130 @@ class AppDatabase extends _$AppDatabase {
         name: muscleGroup.name,
         muscleGroupId: Value(muscleGroupId),
         isCustom: const Value(false),
+      ),
+    );
+  }
+
+  Future<CurrentWorkoutSessionData> loadCurrentWorkoutSessionData(
+    int workoutSessionId,
+  ) async {
+    final session = await (select(workoutSessions)
+          ..where((tbl) => tbl.id.equals(workoutSessionId))
+          ..limit(1))
+        .getSingle();
+
+    String workoutName = session.nameOverride?.trim() ?? '';
+    if (workoutName.isEmpty && session.workoutDefinitionId != null) {
+      final definition = await (select(workoutDefinitions)
+            ..where((tbl) => tbl.id.equals(session.workoutDefinitionId!))
+            ..limit(1))
+          .getSingleOrNull();
+      workoutName = definition?.name ?? '';
+    }
+    if (workoutName.isEmpty) {
+      workoutName = 'Current Workout';
+    }
+
+    final entryRows = await (select(exerciseEntries).join([
+      innerJoin(exercises, exercises.id.equalsExp(exerciseEntries.exerciseId)),
+    ])
+          ..where(exerciseEntries.workoutSessionId.equals(workoutSessionId))
+          ..orderBy([
+            OrderingTerm(expression: exerciseEntries.sortOrder),
+            OrderingTerm(expression: exerciseEntries.id),
+          ]))
+        .get();
+
+    final exercisesWithHistory = <CurrentWorkoutExerciseData>[];
+    for (final row in entryRows) {
+      final entry = row.readTable(exerciseEntries);
+      final exercise = row.readTable(exercises);
+      final lastSet = await fetchLastSetForExercise(
+        exercise.id,
+        excludeWorkoutSessionId: workoutSessionId,
+      );
+
+      exercisesWithHistory.add(
+        CurrentWorkoutExerciseData(
+          exerciseEntryId: entry.id,
+          exerciseId: exercise.id,
+          exerciseName: exercise.name,
+          lastPerformedAt: lastSet?.performedAt,
+          lastRepetitions: lastSet?.repetitions,
+          lastWeight: lastSet?.weight,
+        ),
+      );
+    }
+
+    return CurrentWorkoutSessionData(
+      workoutName: workoutName,
+      exercises: exercisesWithHistory,
+    );
+  }
+
+  Future<ExerciseLastSetData?> fetchLastSetForExercise(
+    int exerciseId, {
+    int? excludeWorkoutSessionId,
+  }) async {
+    final query = select(setEntries).join([
+      innerJoin(
+        exerciseEntries,
+        exerciseEntries.id.equalsExp(setEntries.exerciseEntryId),
+      ),
+      innerJoin(
+        workoutSessions,
+        workoutSessions.id.equalsExp(exerciseEntries.workoutSessionId),
+      ),
+    ])
+      ..where(exerciseEntries.exerciseId.equals(exerciseId));
+
+    if (excludeWorkoutSessionId != null) {
+      query.where(workoutSessions.id.isNotValue(excludeWorkoutSessionId));
+    }
+
+    query
+      ..orderBy([
+        OrderingTerm(
+          expression: workoutSessions.performedAt,
+          mode: OrderingMode.desc,
+        ),
+        OrderingTerm(expression: setEntries.setIndex, mode: OrderingMode.desc),
+        OrderingTerm(expression: setEntries.id, mode: OrderingMode.desc),
+      ])
+      ..limit(1);
+
+    final row = await query.getSingleOrNull();
+    if (row == null) {
+      return null;
+    }
+
+    final set = row.readTable(setEntries);
+    final session = row.readTable(workoutSessions);
+    return ExerciseLastSetData(
+      performedAt: session.performedAt,
+      repetitions: set.repetitions,
+      weight: set.weight,
+    );
+  }
+
+  Future<void> addSetForExerciseEntry({
+    required int exerciseEntryId,
+    required int repetitions,
+    required double weight,
+  }) async {
+    final maxSetIndexExpression = setEntries.setIndex.max();
+    final maxSetIndexRow = await (selectOnly(setEntries)
+          ..addColumns([maxSetIndexExpression])
+          ..where(setEntries.exerciseEntryId.equals(exerciseEntryId)))
+        .getSingle();
+    final maxSetIndex = maxSetIndexRow.read(maxSetIndexExpression);
+
+    await into(setEntries).insert(
+      SetEntriesCompanion.insert(
+        exerciseEntryId: exerciseEntryId,
+        setIndex: Value((maxSetIndex ?? -1) + 1),
+        weight: Value(weight),
+        repetitions: Value(repetitions),
       ),
     );
   }

@@ -7,9 +7,11 @@ class MuscleWorkoutScreen extends StatefulWidget {
   const MuscleWorkoutScreen({
     super.key,
     required this.database,
+    required this.onWorkoutStarted,
   });
 
   final AppDatabase database;
+  final Future<void> Function(int workoutSessionId) onWorkoutStarted;
 
   @override
   State<MuscleWorkoutScreen> createState() => _MuscleWorkoutScreenState();
@@ -18,13 +20,35 @@ class MuscleWorkoutScreen extends StatefulWidget {
 class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
   int? _selectedMuscleGroupId;
   final Set<int> _selectedExerciseIds = {};
+  late final TextEditingController _workoutNameController;
   bool _isCreatingWorkout = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _workoutNameController =
+        TextEditingController(text: _buildDefaultWorkoutName());
+  }
+
+  @override
+  void dispose() {
+    _workoutNameController.dispose();
+    super.dispose();
+  }
 
   void _selectMuscleGroup(int id) {
     setState(() {
       _selectedMuscleGroupId = id;
       _selectedExerciseIds.clear();
     });
+  }
+
+  String _buildDefaultWorkoutName() {
+    final now = DateTime.now();
+    final day = now.day.toString().padLeft(2, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final year = now.year.toString().padLeft(4, '0');
+    return 'VirginActive $day-$month-$year';
   }
 
   @override
@@ -52,6 +76,14 @@ class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            TextField(
+              controller: _workoutNameController,
+              decoration: const InputDecoration(
+                labelText: 'Workout name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
             Text(
               'Select muscle group',
               style: Theme.of(context).textTheme.titleMedium,
@@ -121,7 +153,7 @@ class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
 
                         return ListView.separated(
                           itemCount: exercises.length,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (context, index) =>
                               const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final exercise = exercises[index];
@@ -158,24 +190,33 @@ class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
                         if (muscleGroupId == null) {
                           return;
                         }
+                        final messenger = ScaffoldMessenger.of(context);
+                        final navigator = Navigator.of(context);
 
                         setState(() {
                           _isCreatingWorkout = true;
                         });
 
                         try {
-                          await widget.database.createWorkoutForMuscleGroup(
+                          final workoutSessionId =
+                              await widget.database.createWorkoutForMuscleGroup(
                             muscleGroupId: muscleGroupId,
                             exerciseIds: _selectedExerciseIds.toList(),
+                            nameOverride:
+                                _workoutNameController.text.trim().isEmpty
+                                    ? _buildDefaultWorkoutName()
+                                    : _workoutNameController.text.trim(),
                           );
+                          await widget.onWorkoutStarted(workoutSessionId);
 
                           if (!mounted) return;
 
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             const SnackBar(
                               content: Text('Workout started.'),
                             ),
                           );
+                          navigator.pop();
                         } finally {
                           if (mounted) {
                             setState(() {

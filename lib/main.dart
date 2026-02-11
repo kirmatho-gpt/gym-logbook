@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'data/app_database.dart';
 import 'data/repositories/exercise_repository.dart';
 import 'debug/debug_database_screen.dart';
+import 'screens/current_workout_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/start_workout_screen.dart';
+import 'state/current_workout_controller.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,10 +26,23 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late final ExerciseRepository _exerciseRepository =
       ExerciseRepository(widget.database);
+  late final CurrentWorkoutController _currentWorkoutController =
+      CurrentWorkoutController(database: widget.database);
   int _selectedIndex = 0;
+
+  Future<void> _onWorkoutStarted(int workoutSessionId) async {
+    await _currentWorkoutController.startWorkout(workoutSessionId);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _selectedIndex = 1;
+    });
+  }
 
   @override
   void dispose() {
+    _currentWorkoutController.dispose();
     widget.database.close();
     super.dispose();
   }
@@ -65,6 +80,10 @@ class _MyAppState extends State<MyApp> {
                       label: Text('Start Workout'),
                     ),
                     NavigationRailDestination(
+                      icon: Icon(Icons.directions_run),
+                      label: Text('Current Workout'),
+                    ),
+                    NavigationRailDestination(
                       icon: Icon(Icons.history),
                       label: Text('History'),
                     ),
@@ -81,7 +100,11 @@ class _MyAppState extends State<MyApp> {
               child: IndexedStack(
                 index: _selectedIndex,
                 children: [
-                  StartWorkoutScreen(database: widget.database),
+                  StartWorkoutScreen(
+                    database: widget.database,
+                    onWorkoutStarted: _onWorkoutStarted,
+                  ),
+                  CurrentWorkoutScreen(controller: _currentWorkoutController),
                   const HistoryScreen(),
                   DebugDatabaseScreen(
                     exerciseRepository: _exerciseRepository,
@@ -108,6 +131,10 @@ class _MyAppState extends State<MyApp> {
                 NavigationDestination(
                   icon: Icon(Icons.fitness_center),
                   label: 'Start Workout',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.directions_run),
+                  label: 'Current Workout',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.history),

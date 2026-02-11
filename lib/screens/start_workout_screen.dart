@@ -7,9 +7,11 @@ class StartWorkoutScreen extends StatelessWidget {
   const StartWorkoutScreen({
     super.key,
     required this.database,
+    required this.onWorkoutStarted,
   });
 
   final AppDatabase database;
+  final Future<void> Function(int workoutSessionId) onWorkoutStarted;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +24,10 @@ class StartWorkoutScreen extends StatelessWidget {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => MuscleWorkoutScreen(database: database),
+                  builder: (_) => MuscleWorkoutScreen(
+                    database: database,
+                    onWorkoutStarted: onWorkoutStarted,
+                  ),
                 ),
               );
             },
