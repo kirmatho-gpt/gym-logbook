@@ -22,6 +22,7 @@ class CurrentWorkoutExerciseData {
     required this.exerciseEntryId,
     required this.exerciseId,
     required this.exerciseName,
+    required this.savedSets,
     this.lastPerformedAt,
     this.lastSetCount,
     this.lastMaxWeight,
@@ -30,9 +31,20 @@ class CurrentWorkoutExerciseData {
   final int exerciseEntryId;
   final int exerciseId;
   final String exerciseName;
+  final List<SavedExerciseSetData> savedSets;
   final DateTime? lastPerformedAt;
   final int? lastSetCount;
   final double? lastMaxWeight;
+}
+
+class SavedExerciseSetData {
+  const SavedExerciseSetData({
+    required this.repetitions,
+    required this.weight,
+  });
+
+  final int repetitions;
+  final double weight;
 }
 
 class ExerciseLastPerformanceData {
@@ -45,6 +57,20 @@ class ExerciseLastPerformanceData {
   final DateTime performedAt;
   final int setCount;
   final double maxWeight;
+}
+
+class UnfinishedWorkoutSessionSummary {
+  const UnfinishedWorkoutSessionSummary({
+    required this.workoutSessionId,
+    required this.workoutName,
+    required this.performedAt,
+    required this.unfinishedExerciseCount,
+  });
+
+  final int workoutSessionId;
+  final String workoutName;
+  final DateTime performedAt;
+  final int unfinishedExerciseCount;
 }
 
 class WorkoutDefinitions extends Table {
@@ -326,6 +352,7 @@ class AppDatabase extends _$AppDatabase {
           exerciseEntryId: entry.id,
           exerciseId: exercise.id,
           exerciseName: exercise.name,
+          savedSets: await _loadSavedSetsForExerciseEntry(entry.id),
           lastPerformedAt: lastPerformance?.performedAt,
           lastSetCount: lastPerformance?.setCount,
           lastMaxWeight: lastPerformance?.maxWeight,
@@ -337,6 +364,70 @@ class AppDatabase extends _$AppDatabase {
       workoutName: workoutName,
       exercises: exercisesWithHistory,
     );
+  }
+
+  Future<List<SavedExerciseSetData>> _loadSavedSetsForExerciseEntry(
+    int exerciseEntryId,
+  ) async {
+    final rows = await (select(setEntries)
+          ..where((tbl) => tbl.exerciseEntryId.equals(exerciseEntryId))
+          ..orderBy([
+            (tbl) => OrderingTerm(expression: tbl.setIndex),
+            (tbl) => OrderingTerm(expression: tbl.id),
+          ]))
+        .get();
+
+    return [
+      for (final row in rows)
+        SavedExerciseSetData(
+          repetitions: row.repetitions,
+          weight: row.weight,
+        ),
+    ];
+  }
+
+  Stream<List<UnfinishedWorkoutSessionSummary>> watchLatestUnfinishedWorkouts({
+    int limit = 5,
+  }) {
+    final safeLimit = limit.clamp(1, 50).toInt();
+
+    final query = customSelect(
+      '''
+SELECT
+  ws.id AS workout_session_id,
+  COALESCE(NULLIF(TRIM(ws.name_override), ''), wd.name, 'Current Workout') AS workout_name,
+  ws.performed_at AS performed_at,
+  SUM(CASE WHEN IFNULL(sc.set_count, 0) = 0 THEN 1 ELSE 0 END) AS unfinished_exercise_count
+FROM workout_sessions ws
+LEFT JOIN workout_definitions wd ON wd.id = ws.workout_definition_id
+INNER JOIN exercise_entries ee ON ee.workout_session_id = ws.id
+LEFT JOIN (
+  SELECT exercise_entry_id, COUNT(*) AS set_count
+  FROM set_entries
+  GROUP BY exercise_entry_id
+) sc ON sc.exercise_entry_id = ee.id
+GROUP BY ws.id, ws.name_override, wd.name, ws.performed_at
+HAVING SUM(CASE WHEN IFNULL(sc.set_count, 0) = 0 THEN 1 ELSE 0 END) > 0
+ORDER BY ws.performed_at DESC, ws.id DESC
+LIMIT ?
+''',
+      variables: [Variable<int>(safeLimit)],
+      readsFrom: {workoutSessions, workoutDefinitions, exerciseEntries, setEntries},
+    );
+
+    return query.watch().map(
+          (rows) => rows
+              .map(
+                (row) => UnfinishedWorkoutSessionSummary(
+                  workoutSessionId: row.read<int>('workout_session_id'),
+                  workoutName: row.read<String>('workout_name'),
+                  performedAt: row.read<DateTime>('performed_at'),
+                  unfinishedExerciseCount:
+                      row.read<int>('unfinished_exercise_count'),
+                ),
+              )
+              .toList(growable: false),
+        );
   }
 
   Future<ExerciseLastPerformanceData?> fetchLastPerformanceForExercise(
@@ -413,5 +504,38 @@ class AppDatabase extends _$AppDatabase {
         repetitions: Value(repetitions),
       ),
     );
+  }
+
+  Future<bool> deleteWorkoutSessionIfEmpty(int workoutSessionId) async {
+    return transaction(() async {
+      final sessionExists = await (select(workoutSessions)
+            ..where((tbl) => tbl.id.equals(workoutSessionId))
+            ..limit(1))
+          .getSingleOrNull();
+      if (sessionExists == null) {
+        return false;
+      }
+
+      final hasAnySet = await (select(setEntries).join([
+        innerJoin(
+          exerciseEntries,
+          exerciseEntries.id.equalsExp(setEntries.exerciseEntryId),
+        ),
+      ])
+            ..where(exerciseEntries.workoutSessionId.equals(workoutSessionId))
+            ..limit(1))
+          .getSingleOrNull();
+
+      if (hasAnySet != null) {
+        return false;
+      }
+
+      await (delete(exerciseEntries)
+            ..where((tbl) => tbl.workoutSessionId.equals(workoutSessionId)))
+          .go();
+      await (delete(workoutSessions)..where((tbl) => tbl.id.equals(workoutSessionId)))
+          .go();
+      return true;
+    });
   }
 }

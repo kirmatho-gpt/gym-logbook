@@ -138,26 +138,50 @@ class CurrentWorkoutController extends ChangeNotifier {
   }
 
   Future<void> startWorkout(int workoutSessionId) async {
+    final previousSessionId = _workoutSessionId;
+    if (previousSessionId != null && previousSessionId != workoutSessionId) {
+      await _database.deleteWorkoutSessionIfEmpty(previousSessionId);
+    }
+
     final data = await _database.loadCurrentWorkoutSessionData(workoutSessionId);
 
     _workoutSessionId = workoutSessionId;
     _workoutName = data.workoutName;
     _exercises = [
       for (final exercise in data.exercises)
-        CurrentWorkoutExerciseState(
-          exerciseEntryId: exercise.exerciseEntryId,
-          exerciseId: exercise.exerciseId,
-          exerciseName: exercise.exerciseName,
-          lastPerformedAt: exercise.lastPerformedAt,
-          lastSetCount: exercise.lastSetCount,
-          lastMaxWeight: exercise.lastMaxWeight,
-          configuredWeight: exercise.lastMaxWeight ?? 20,
-          sets: List<WorkoutSetState>.generate(
-            4,
-            (_) => const WorkoutSetState(repetitions: 8),
-            growable: false,
-          ),
-        ),
+        () {
+          final savedSets = exercise.savedSets;
+          final hasSavedSets = savedSets.isNotEmpty;
+          final configuredWeight = hasSavedSets
+              ? savedSets.last.weight
+              : (exercise.lastMaxWeight ?? 20);
+          final sets = hasSavedSets
+              ? [
+                  for (final savedSet in savedSets)
+                    WorkoutSetState(
+                      repetitions: savedSet.repetitions,
+                      isValidated: true,
+                      validatedWeight: savedSet.weight,
+                    ),
+                ]
+              : List<WorkoutSetState>.generate(
+                  4,
+                  (_) => const WorkoutSetState(repetitions: 8),
+                  growable: false,
+                );
+
+          return CurrentWorkoutExerciseState(
+            exerciseEntryId: exercise.exerciseEntryId,
+            exerciseId: exercise.exerciseId,
+            exerciseName: exercise.exerciseName,
+            lastPerformedAt: exercise.lastPerformedAt,
+            lastSetCount: exercise.lastSetCount,
+            lastMaxWeight: exercise.lastMaxWeight,
+            configuredWeight: configuredWeight,
+            isFinished: hasSavedSets,
+            sets: sets,
+          );
+        }(),
     ];
 
     _syncTimeSinceTicker();
@@ -381,6 +405,20 @@ class CurrentWorkoutController extends ChangeNotifier {
             },
           )
           .toList(growable: false);
+
+      final hasValidatedAnySet = _exercises.any(
+        (item) => item.sets.any((setLine) => setLine.isValidated),
+      );
+      final isWorkoutFullyFinished = _exercises.every((item) => item.isFinished);
+      if (!hasValidatedAnySet && isWorkoutFullyFinished && _workoutSessionId != null) {
+        await _database.deleteWorkoutSessionIfEmpty(_workoutSessionId!);
+        _timeSinceTicker?.cancel();
+        _timeSinceTicker = null;
+        _workoutSessionId = null;
+        _workoutName = 'Current Workout';
+        _exercises = const [];
+      }
+
       _syncTimeSinceTicker();
     } finally {
       _isSavingSet = false;
