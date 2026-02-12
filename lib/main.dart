@@ -105,7 +105,7 @@ class _MyAppState extends State<MyApp> {
                     onWorkoutStarted: _onWorkoutStarted,
                   ),
                   CurrentWorkoutScreen(controller: _currentWorkoutController),
-                  const HistoryScreen(),
+                  HistoryScreen(database: widget.database),
                   DebugDatabaseScreen(
                     exerciseRepository: _exerciseRepository,
                   ),

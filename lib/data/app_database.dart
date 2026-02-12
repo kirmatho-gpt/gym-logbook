@@ -73,6 +73,34 @@ class UnfinishedWorkoutSessionSummary {
   final int unfinishedExerciseCount;
 }
 
+class WorkoutHistoryListItem {
+  const WorkoutHistoryListItem({
+    required this.workoutSessionId,
+    required this.dayKey,
+    required this.workoutName,
+    required this.muscleGroupName,
+    required this.exercisesCount,
+    required this.totalTimeSeconds,
+  });
+
+  final int workoutSessionId;
+  final String dayKey;
+  final String workoutName;
+  final String muscleGroupName;
+  final int exercisesCount;
+  final int totalTimeSeconds;
+}
+
+class DailyExerciseEffort {
+  const DailyExerciseEffort({
+    required this.dayKey,
+    required this.averageEffort,
+  });
+
+  final String dayKey;
+  final double averageEffort;
+}
+
 class WorkoutDefinitions extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -134,6 +162,8 @@ class SetEntries extends Table {
   IntColumn get setIndex => integer().withDefault(const Constant(0))();
   RealColumn get weight => real().withDefault(const Constant(0))();
   IntColumn get repetitions => integer().withDefault(const Constant(0))();
+  DateTimeColumn get validatedAt =>
+      dateTime().withDefault(currentDateAndTime)();
   BoolColumn get isWarmup => boolean().withDefault(const Constant(false))();
   TextColumn get notes => text().nullable()();
 }
@@ -142,7 +172,7 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'gym_logbook.sqlite'));
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(file, logStatements: true);
   });
 }
 
@@ -165,7 +195,18 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.open() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) async {
+          await m.createAll();
+        },
+        onUpgrade: (m, from, to) async {},
+        beforeOpen: (details) async {
+          await _ensureSetValidatedAtColumn();
+        },
+      );
 
   static Future<void> wipeFile() async {
     final dbFolder = await getApplicationDocumentsDirectory();
@@ -173,6 +214,34 @@ class AppDatabase extends _$AppDatabase {
     if (await file.exists()) {
       await file.delete();
     }
+  }
+
+  Future<void> _ensureSetValidatedAtColumn() async {
+    try {
+      await customStatement(
+        "ALTER TABLE set_entries ADD COLUMN validated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))",
+      );
+    } catch (_) {
+      // Column already exists on upgraded databases.
+    }
+
+    await customStatement(
+      '''
+UPDATE set_entries
+SET validated_at = COALESCE(
+  validated_at,
+  (
+    SELECT ws.performed_at
+    FROM exercise_entries ee
+    INNER JOIN workout_sessions ws ON ws.id = ee.workout_session_id
+    WHERE ee.id = set_entries.exercise_entry_id
+    LIMIT 1
+  ),
+  strftime('%s','now')
+)
+WHERE validated_at IS NULL;
+''',
+    );
   }
 
   Future<int> createWorkoutForMuscleGroup({
@@ -424,6 +493,95 @@ LIMIT ?
                   performedAt: row.read<DateTime>('performed_at'),
                   unfinishedExerciseCount:
                       row.read<int>('unfinished_exercise_count'),
+                ),
+              )
+              .toList(growable: false),
+        );
+  }
+
+  Stream<List<WorkoutHistoryListItem>> watchWorkoutsFromLastMonth() {
+    final since = DateTime.now().subtract(const Duration(days: 30));
+
+    final query = customSelect(
+      '''
+SELECT
+  ws.id AS workout_session_id,
+  date(ws.performed_at, 'unixepoch') AS day_key,
+  COALESCE(NULLIF(TRIM(ws.name_override), ''), wd.name, 'Current Workout') AS workout_name,
+  COALESCE(mg.name, 'Unknown') AS muscle_group_name,
+  COUNT(DISTINCT ee.id) AS exercises_count,
+  COALESCE(
+    MAX(CAST(se.validated_at AS INTEGER)) - MIN(CAST(se.validated_at AS INTEGER)),
+    0
+  ) AS total_time_seconds
+FROM workout_sessions ws
+LEFT JOIN workout_definitions wd ON wd.id = ws.workout_definition_id
+LEFT JOIN muscle_groups mg ON mg.id = wd.muscle_group_id
+INNER JOIN exercise_entries ee ON ee.workout_session_id = ws.id
+LEFT JOIN set_entries se ON se.exercise_entry_id = ee.id
+WHERE ws.performed_at >= ?
+GROUP BY ws.id, day_key, ws.name_override, wd.name, mg.name
+ORDER BY day_key DESC, ws.performed_at DESC, ws.id DESC
+''',
+      variables: [Variable<DateTime>(since)],
+      readsFrom: {
+        workoutSessions,
+        workoutDefinitions,
+        muscleGroups,
+        exerciseEntries,
+        setEntries,
+      },
+    );
+
+    return query.watch().map(
+          (rows) => rows
+              .map(
+                (row) => WorkoutHistoryListItem(
+                  workoutSessionId: row.read<int>('workout_session_id'),
+                  dayKey: row.read<String>('day_key'),
+                  workoutName: row.read<String>('workout_name'),
+                  muscleGroupName: row.read<String>('muscle_group_name'),
+                  exercisesCount: row.read<int>('exercises_count'),
+                  totalTimeSeconds: row.read<int>('total_time_seconds'),
+                ),
+              )
+              .toList(growable: false),
+        );
+  }
+
+  Stream<List<DailyExerciseEffort>> watchDailyAverageEffortForExercise(
+    int exerciseId,
+  ) {
+    final query = customSelect(
+      '''
+WITH per_workout AS (
+  SELECT
+    ws.id AS workout_session_id,
+    date(ws.performed_at, 'unixepoch') AS day_key,
+    SUM(se.weight * se.repetitions) / COUNT(se.id) AS workout_effort
+  FROM workout_sessions ws
+  INNER JOIN exercise_entries ee ON ee.workout_session_id = ws.id
+  INNER JOIN set_entries se ON se.exercise_entry_id = ee.id
+  WHERE ee.exercise_id = ?
+  GROUP BY ws.id, day_key
+)
+SELECT
+  day_key,
+  CAST(AVG(workout_effort) AS REAL) AS average_effort
+FROM per_workout
+GROUP BY day_key
+ORDER BY day_key DESC
+''',
+      variables: [Variable<int>(exerciseId)],
+      readsFrom: {workoutSessions, exerciseEntries, setEntries},
+    );
+
+    return query.watch().map(
+          (rows) => rows
+              .map(
+                (row) => DailyExerciseEffort(
+                  dayKey: row.read<String>('day_key'),
+                  averageEffort: row.read<double>('average_effort'),
                 ),
               )
               .toList(growable: false),
