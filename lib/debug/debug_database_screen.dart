@@ -173,12 +173,15 @@ class _DebugDatabaseScreenState extends State<DebugDatabaseScreen> {
                 children: [
                   DropdownButtonFormField<_DebugTable>(
                     value: _selectedTable,
-                    items: const [
-                      DropdownMenuItem(
+                    isDense: true,
+                    itemHeight: 48,
+                    menuMaxHeight: 280,
+                    items: [
+                      const DropdownMenuItem(
                         value: _DebugTable.muscleGroups,
                         child: Text('Muscle groups'),
                       ),
-                      DropdownMenuItem(
+                      const DropdownMenuItem(
                         value: _DebugTable.exercises,
                         child: Text('Exercises'),
                       ),
@@ -189,9 +192,19 @@ class _DebugDatabaseScreenState extends State<DebugDatabaseScreen> {
                         _selectedTable = value;
                       });
                     },
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Table to populate',
-                      border: OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(
+                        context,
+                      ).colorScheme.surface.withValues(alpha: 0.4),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),

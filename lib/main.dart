@@ -58,7 +58,20 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'Gym Logbook',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+        colorScheme: const ColorScheme.dark(
+          surface: Color(0xFF0A1A2F),
+          primary: Color(0xFFA3E635),
+          secondary: Color(0xFF38BDF8),
+          onSurface: Color(0xFFE5E7EB),
+          onPrimary: Color(0xFF0A1A2F),
+          onSecondary: Color(0xFF0A1A2F),
+        ),
+        scaffoldBackgroundColor: const Color(0xFF0A1A2F),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0A1A2F),
+          foregroundColor: Color(0xFFE5E7EB),
+        ),
       ),
       home: Scaffold(
         appBar: AppBar(

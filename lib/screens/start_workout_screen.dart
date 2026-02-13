@@ -62,7 +62,7 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
             ),
             child: Row(
               children: [
-                const Text('💪', style: TextStyle(fontSize: 20)),
+                const Text('💪'),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -72,7 +72,7 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Text('💪', style: TextStyle(fontSize: 20)),
+                const Text('💪'),
               ],
             ),
           ),

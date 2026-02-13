@@ -68,9 +68,9 @@ class _CustomWorkoutScreenState extends State<CustomWorkoutScreen> {
           children: [
             TextField(
               controller: _workoutNameController,
-              decoration: const InputDecoration(
-                labelText: 'Workout name',
-                border: OutlineInputBorder(),
+              decoration: _textFieldDecoration(
+                context,
+                label: 'Workout name',
               ),
             ),
             const SizedBox(height: 16),
@@ -232,6 +232,29 @@ class _CustomWorkoutScreenState extends State<CustomWorkoutScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  InputDecoration _textFieldDecoration(
+    BuildContext context, {
+    required String label,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
+      ),
+    );
+    return InputDecoration(
+      labelText: label,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      filled: true,
+      fillColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.4),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
       ),
     );
   }

@@ -75,6 +75,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
             final dayKey = dayKeys[index];
             final items = byDay[dayKey] ?? const <WorkoutHistoryListItem>[];
             return Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.45),
+                  width: 0.9,
+                ),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -152,15 +159,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
               final muscleGroups = snapshot.data ?? const <MuscleGroup>[];
               return DropdownButtonFormField<int>(
                 value: _selectedMuscleGroupId,
-                decoration: const InputDecoration(
-                  labelText: 'Muscle group',
-                  border: OutlineInputBorder(),
+                isDense: true,
+                itemHeight: 48,
+                menuMaxHeight: 280,
+                decoration: _dropdownDecoration(
+                  context,
+                  label: 'Muscle group',
                 ),
                 items: [
                   for (final group in muscleGroups)
                     DropdownMenuItem<int>(
                       value: group.id,
-                      child: Text(group.name),
+                      child: Text(
+                        group.name,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
                 ],
                 onChanged: (value) {
@@ -195,15 +208,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
               return DropdownButtonFormField<int>(
                 value: hasSelectedExercise ? selectedExerciseId : null,
-                decoration: const InputDecoration(
-                  labelText: 'Exercise',
-                  border: OutlineInputBorder(),
-                ),
+                isDense: true,
+                itemHeight: 48,
+                menuMaxHeight: 280,
+                decoration: _dropdownDecoration(context, label: 'Exercise'),
                 items: [
                   for (final exercise in exercises)
                     DropdownMenuItem<int>(
                       value: exercise.id,
-                      child: Text(exercise.name),
+                      child: Text(
+                        exercise.name,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
                 ],
                 onChanged: (value) {
@@ -317,6 +333,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final day = date.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
   }
+
+  InputDecoration _dropdownDecoration(
+    BuildContext context, {
+    required String label,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
+      ),
+    );
+    return InputDecoration(
+      labelText: label,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      filled: true,
+      fillColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.4),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+      ),
+    );
+  }
+
 }
 
 class _EffortChartSeries {

@@ -45,15 +45,21 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
               final muscleGroups = snapshot.data ?? const <MuscleGroup>[];
               return DropdownButtonFormField<int>(
                 value: _selectedMuscleGroupId,
-                decoration: const InputDecoration(
-                  labelText: 'Muscle group',
-                  border: OutlineInputBorder(),
+                isDense: true,
+                itemHeight: 48,
+                menuMaxHeight: 280,
+                decoration: _dropdownDecoration(
+                  context,
+                  label: 'Muscle group',
                 ),
                 items: [
                   for (final group in muscleGroups)
                     DropdownMenuItem<int>(
                       value: group.id,
-                      child: Text(group.name),
+                      child: Text(
+                        group.name,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ),
                 ],
                 onChanged: (value) {
@@ -219,6 +225,29 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
     return '$year-$month-$day $hour:$minute';
+  }
+
+  InputDecoration _dropdownDecoration(
+    BuildContext context, {
+    required String label,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
+      ),
+    );
+    return InputDecoration(
+      labelText: label,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      filled: true,
+      fillColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.4),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+      ),
+    );
   }
 
   Future<void> _showCreateExerciseDialog(int muscleGroupId) async {

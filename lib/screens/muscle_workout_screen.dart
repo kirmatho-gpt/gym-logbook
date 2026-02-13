@@ -78,9 +78,9 @@ class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
           children: [
             TextField(
               controller: _workoutNameController,
-              decoration: const InputDecoration(
-                labelText: 'Workout name',
-                border: OutlineInputBorder(),
+              decoration: _textFieldDecoration(
+                context,
+                label: 'Workout name',
               ),
             ),
             const SizedBox(height: 16),
@@ -92,7 +92,7 @@ class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
             StreamBuilder<List<MuscleGroup>>(
               stream: muscleGroupsStream,
               builder: (context, snapshot) {
-                final muscleGroups = snapshot.data ?? [];
+                final muscleGroups = snapshot.data ?? const <MuscleGroup>[];
                 if (snapshot.connectionState == ConnectionState.waiting &&
                     muscleGroups.isEmpty) {
                   return const Center(child: CircularProgressIndicator());
@@ -105,20 +105,31 @@ class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
                   );
                 }
 
-                return Column(
-                  children: muscleGroups
-                      .map(
-                        (group) => RadioListTile<int>(
-                          value: group.id,
-                          groupValue: _selectedMuscleGroupId,
-                          onChanged: (value) {
-                            if (value == null) return;
-                            _selectMuscleGroup(value);
-                          },
-                          title: Text(group.name),
+                return DropdownButtonFormField<int>(
+                  value: _selectedMuscleGroupId,
+                  isDense: true,
+                  itemHeight: 48,
+                  menuMaxHeight: 280,
+                  decoration: _dropdownDecoration(
+                    context,
+                    label: 'Muscle group',
+                  ),
+                  items: [
+                    for (final group in muscleGroups)
+                      DropdownMenuItem<int>(
+                        value: group.id,
+                        child: Text(
+                          group.name,
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
-                      )
-                      .toList(),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    _selectMuscleGroup(value);
+                  },
                 );
               },
             ),
@@ -239,4 +250,51 @@ class _MuscleWorkoutScreenState extends State<MuscleWorkoutScreen> {
       ),
     );
   }
+
+  InputDecoration _dropdownDecoration(
+    BuildContext context, {
+    required String label,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
+      ),
+    );
+    return InputDecoration(
+      labelText: label,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      filled: true,
+      fillColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.4),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+      ),
+    );
+  }
+
+  InputDecoration _textFieldDecoration(
+    BuildContext context, {
+    required String label,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.6),
+      ),
+    );
+    return InputDecoration(
+      labelText: label,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      filled: true,
+      fillColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.4),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+      ),
+    );
+  }
+
 }
