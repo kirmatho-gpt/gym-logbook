@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 
@@ -13,6 +15,8 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
+  static const int _defaultEffortHistoryDays = 30;
+
   int? _selectedMuscleGroupId;
   int? _selectedExerciseId;
 
@@ -66,7 +70,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         return ListView.separated(
           padding: const EdgeInsets.all(16),
           itemCount: dayKeys.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, index) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final dayKey = dayKeys[index];
             final items = byDay[dayKey] ?? const <WorkoutHistoryListItem>[];
@@ -195,6 +199,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 : StreamBuilder<List<DailyExerciseEffort>>(
                     stream: widget.database.watchDailyAverageEffortForExercise(
                       _selectedExerciseId!,
+                      historyDays: _defaultEffortHistoryDays,
                     ),
                     builder: (context, snapshot) {
                       final points =
@@ -212,18 +217,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         );
                       }
 
-                      return ListView.separated(
-                        itemCount: points.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final point = points[index];
-                          return ListTile(
-                            title: Text(point.dayKey),
-                            trailing: Text(
-                              point.averageEffort.toStringAsFixed(1),
+                      final chartSeries = _buildEffortChartSeries(
+                        points,
+                        _defaultEffortHistoryDays,
+                      );
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Average Effort over last $_defaultEffortHistoryDays days',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 240,
+                            child: _EffortLineChart(
+                              labels: chartSeries.labels,
+                              values: chartSeries.values,
                             ),
-                          );
-                        },
+                          ),
+                        ],
                       );
                     },
                   ),
@@ -237,5 +250,259 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final minutes = (totalSeconds ~/ 60).toString().padLeft(2, '0');
     final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  _EffortChartSeries _buildEffortChartSeries(
+    List<DailyExerciseEffort> points,
+    int historyDays,
+  ) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final start = today.subtract(Duration(days: historyDays - 1));
+
+    final valuesByDay = <String, double>{
+      for (final point in points) point.dayKey: point.averageEffort,
+    };
+
+    final labels = <String>[];
+    final values = <double?>[];
+    for (var i = 0; i < historyDays; i++) {
+      final day = start.add(Duration(days: i));
+      final dayKey = _dayKey(day);
+      labels.add(dayKey);
+      values.add(valuesByDay[dayKey]);
+    }
+
+    return _EffortChartSeries(labels: labels, values: values);
+  }
+
+  String _dayKey(DateTime date) {
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+}
+
+class _EffortChartSeries {
+  const _EffortChartSeries({
+    required this.labels,
+    required this.values,
+  });
+
+  final List<String> labels;
+  final List<double?> values;
+}
+
+class _EffortLineChart extends StatelessWidget {
+  const _EffortLineChart({
+    required this.labels,
+    required this.values,
+  });
+
+  final List<String> labels;
+  final List<double?> values;
+
+  @override
+  Widget build(BuildContext context) {
+    if (labels.isEmpty || values.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final textTheme = Theme.of(context).textTheme.bodySmall;
+    final tickIndexes = _buildTickIndexes(labels.length, tickCount: 5);
+
+    return Column(
+      children: [
+        Expanded(
+          child: CustomPaint(
+            size: Size.infinite,
+            painter: _EffortLineChartPainter(
+              values: values,
+              axisColor: Theme.of(context).colorScheme.outline,
+              lineColor: Theme.of(context).colorScheme.primary,
+              pointColor: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            for (final index in tickIndexes)
+              Text(_shortLabel(labels[index]), style: textTheme),
+          ],
+        ),
+      ],
+    );
+  }
+
+  List<int> _buildTickIndexes(int length, {required int tickCount}) {
+    if (length <= 1 || tickCount <= 1) {
+      return [0];
+    }
+
+    final maxTicks = math.min(tickCount, length);
+    final indexes = <int>{};
+    for (var i = 0; i < maxTicks; i++) {
+      final ratio = i / (maxTicks - 1);
+      indexes.add((ratio * (length - 1)).round());
+    }
+    final sorted = indexes.toList()..sort();
+    return sorted;
+  }
+
+  String _shortLabel(String value) {
+    final parts = value.split('-');
+    if (parts.length != 3) {
+      return value;
+    }
+    return '${parts[1]}/${parts[2]}';
+  }
+}
+
+class _EffortLineChartPainter extends CustomPainter {
+  const _EffortLineChartPainter({
+    required this.values,
+    required this.axisColor,
+    required this.lineColor,
+    required this.pointColor,
+  });
+
+  final List<double?> values;
+  final Color axisColor;
+  final Color lineColor;
+  final Color pointColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const yTickCount = 5;
+    const left = 40.0;
+    const top = 8.0;
+    const right = 8.0;
+    const bottom = 8.0;
+
+    final chartWidth = size.width - left - right;
+    final chartHeight = size.height - top - bottom;
+    if (chartWidth <= 0 || chartHeight <= 0 || values.length < 2) {
+      return;
+    }
+
+    final minMax = _findMinMax(values);
+    if (minMax == null) {
+      return;
+    }
+
+    var minY = minMax.$1;
+    var maxY = minMax.$2;
+    if ((maxY - minY).abs() < 0.0001) {
+      minY -= 1;
+      maxY += 1;
+    }
+
+    final axisPaint = Paint()
+      ..color = axisColor
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      const Offset(left, top),
+      Offset(left, top + chartHeight),
+      axisPaint,
+    );
+    canvas.drawLine(
+      Offset(left, top + chartHeight),
+      Offset(left + chartWidth, top + chartHeight),
+      axisPaint,
+    );
+
+    final gridPaint = Paint()
+      ..color = axisColor.withAlpha(70)
+      ..strokeWidth = 1;
+    for (var i = 1; i < yTickCount - 1; i++) {
+      final y = top + chartHeight * (i / (yTickCount - 1));
+      canvas.drawLine(Offset(left, y), Offset(left + chartWidth, y), gridPaint);
+    }
+
+    final linePaint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    final pointPaint = Paint()
+      ..color = pointColor
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    var hasPathPoint = false;
+    for (var i = 0; i < values.length; i++) {
+      final value = values[i];
+      if (value == null) {
+        continue;
+      }
+
+      final x = left + chartWidth * (i / (values.length - 1));
+      final y = top + ((maxY - value) / (maxY - minY)) * chartHeight;
+      if (!hasPathPoint) {
+        path.moveTo(x, y);
+        hasPathPoint = true;
+      } else {
+        path.lineTo(x, y);
+      }
+
+      canvas.drawCircle(Offset(x, y), 3, pointPaint);
+    }
+
+    if (hasPathPoint) {
+      canvas.drawPath(path, linePaint);
+    }
+
+    for (var i = 0; i < yTickCount; i++) {
+      final ratio = i / (yTickCount - 1);
+      final y = top + (chartHeight * ratio);
+      final value = maxY - ((maxY - minY) * ratio);
+      _drawYLabel(canvas, _formatLabel(value), left - 6, y);
+    }
+  }
+
+  (double, double)? _findMinMax(List<double?> data) {
+    double? minValue;
+    double? maxValue;
+    for (final value in data) {
+      if (value == null) {
+        continue;
+      }
+      minValue = minValue == null ? value : math.min(minValue, value);
+      maxValue = maxValue == null ? value : math.max(maxValue, value);
+    }
+    if (minValue == null || maxValue == null) {
+      return null;
+    }
+    return (minValue, maxValue);
+  }
+
+  void _drawYLabel(Canvas canvas, String text, double rightX, double centerY) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(fontSize: 11, color: Colors.black54),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+
+    final offset = Offset(rightX - painter.width, centerY - (painter.height / 2));
+    painter.paint(canvas, offset);
+  }
+
+  String _formatLabel(double value) {
+    final roundedToTen = (value / 10).round() * 10;
+    return roundedToTen.toString();
+  }
+
+  @override
+  bool shouldRepaint(covariant _EffortLineChartPainter oldDelegate) {
+    return oldDelegate.values != values ||
+        oldDelegate.axisColor != axisColor ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.pointColor != pointColor;
   }
 }

@@ -550,8 +550,13 @@ ORDER BY day_key DESC, ws.performed_at DESC, ws.id DESC
   }
 
   Stream<List<DailyExerciseEffort>> watchDailyAverageEffortForExercise(
-    int exerciseId,
+    int exerciseId, {
+    int historyDays = 30,
+  }
   ) {
+    final safeHistoryDays = historyDays.clamp(1, 365).toInt();
+    final since = DateTime.now().subtract(Duration(days: safeHistoryDays - 1));
+
     final query = customSelect(
       '''
 WITH per_workout AS (
@@ -563,6 +568,7 @@ WITH per_workout AS (
   INNER JOIN exercise_entries ee ON ee.workout_session_id = ws.id
   INNER JOIN set_entries se ON se.exercise_entry_id = ee.id
   WHERE ee.exercise_id = ?
+    AND ws.performed_at >= ?
   GROUP BY ws.id, day_key
 )
 SELECT
@@ -570,9 +576,12 @@ SELECT
   CAST(AVG(workout_effort) AS REAL) AS average_effort
 FROM per_workout
 GROUP BY day_key
-ORDER BY day_key DESC
+ORDER BY day_key ASC
 ''',
-      variables: [Variable<int>(exerciseId)],
+      variables: [
+        Variable<int>(exerciseId),
+        Variable<DateTime>(since),
+      ],
       readsFrom: {workoutSessions, exerciseEntries, setEntries},
     );
 
