@@ -40,6 +40,12 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  void _onWorkoutSessionDeleted(int workoutSessionId) {
+    if (_currentWorkoutController.workoutSessionId == workoutSessionId) {
+      _currentWorkoutController.clear();
+    }
+  }
+
   @override
   void dispose() {
     _currentWorkoutController.dispose();
@@ -103,6 +109,7 @@ class _MyAppState extends State<MyApp> {
                   StartWorkoutScreen(
                     database: widget.database,
                     onWorkoutStarted: _onWorkoutStarted,
+                    onWorkoutSessionDeleted: _onWorkoutSessionDeleted,
                   ),
                   CurrentWorkoutScreen(controller: _currentWorkoutController),
                   HistoryScreen(database: widget.database),
