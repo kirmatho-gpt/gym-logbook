@@ -435,6 +435,33 @@ class CurrentWorkoutController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> deleteCurrentWorkoutIfEmpty() async {
+    final workoutSessionId = _workoutSessionId;
+    if (workoutSessionId == null || _isSavingSet) {
+      return false;
+    }
+
+    _isSavingSet = true;
+    notifyListeners();
+
+    try {
+      final deleted = await _database.deleteWorkoutSessionIfEmpty(
+        workoutSessionId,
+      );
+      if (deleted) {
+        _timeSinceTicker?.cancel();
+        _timeSinceTicker = null;
+        _workoutSessionId = null;
+        _workoutName = 'Current Workout';
+        _exercises = const [];
+      }
+      return deleted;
+    } finally {
+      _isSavingSet = false;
+      notifyListeners();
+    }
+  }
+
   Duration? _finalizeElapsed(CurrentWorkoutExerciseState exercise) {
     final existing = exercise.timeSinceLastValidation;
     if (exercise.isTimeSinceRunning && exercise.timerStartedAt != null) {

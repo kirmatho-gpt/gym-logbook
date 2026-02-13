@@ -65,12 +65,29 @@ class UnfinishedWorkoutSessionSummary {
     required this.workoutName,
     required this.performedAt,
     required this.unfinishedExerciseCount,
+    required this.totalExerciseCount,
+    required this.validatedSetCount,
   });
 
   final int workoutSessionId;
   final String workoutName;
   final DateTime performedAt;
   final int unfinishedExerciseCount;
+  final int totalExerciseCount;
+  final int validatedSetCount;
+
+  double get progressRatio {
+    if (totalExerciseCount <= 0) {
+      return 0;
+    }
+    final targetSets = totalExerciseCount * 4;
+    if (targetSets <= 0) {
+      return 0;
+    }
+    return (validatedSetCount / targetSets).clamp(0.0, 1.0);
+  }
+
+  int get progressPercent => (progressRatio * 100).round();
 }
 
 class WorkoutHistoryListItem {
@@ -505,7 +522,9 @@ SELECT
   ws.id AS workout_session_id,
   COALESCE(NULLIF(TRIM(ws.name_override), ''), wd.name, 'Current Workout') AS workout_name,
   ws.performed_at AS performed_at,
-  SUM(CASE WHEN IFNULL(sc.set_count, 0) = 0 THEN 1 ELSE 0 END) AS unfinished_exercise_count
+  SUM(CASE WHEN IFNULL(sc.set_count, 0) = 0 THEN 1 ELSE 0 END) AS unfinished_exercise_count,
+  COUNT(ee.id) AS total_exercise_count,
+  SUM(IFNULL(sc.set_count, 0)) AS validated_set_count
 FROM workout_sessions ws
 LEFT JOIN workout_definitions wd ON wd.id = ws.workout_definition_id
 INNER JOIN exercise_entries ee ON ee.workout_session_id = ws.id
@@ -532,6 +551,8 @@ LIMIT ?
                   performedAt: row.read<DateTime>('performed_at'),
                   unfinishedExerciseCount:
                       row.read<int>('unfinished_exercise_count'),
+                  totalExerciseCount: row.read<int>('total_exercise_count'),
+                  validatedSetCount: row.read<int>('validated_set_count'),
                 ),
               )
               .toList(growable: false),

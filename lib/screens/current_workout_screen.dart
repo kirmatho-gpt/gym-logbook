@@ -20,15 +20,48 @@ class CurrentWorkoutScreen extends StatelessWidget {
             child: Text('No active workout. Start one from Start Workout.'),
           );
         }
+        final hasValidatedSets = controller.exercises.any(
+          (exercise) => exercise.sets.any((setLine) => setLine.isValidated),
+        );
 
         return Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                controller.workoutName,
-                style: Theme.of(context).textTheme.headlineSmall,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      controller.workoutName,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  if (!hasValidatedSets)
+                    IconButton(
+                      onPressed: controller.isSavingSet
+                          ? null
+                          : () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              final deleted =
+                                  await controller.deleteCurrentWorkoutIfEmpty();
+                              if (!context.mounted) {
+                                return;
+                              }
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    deleted
+                                        ? 'Workout deleted.'
+                                        : 'Could not delete workout.',
+                                  ),
+                                ),
+                              );
+                            },
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'Delete workout',
+                    ),
+                ],
               ),
               const SizedBox(height: 12),
               Expanded(

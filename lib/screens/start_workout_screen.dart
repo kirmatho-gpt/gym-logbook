@@ -9,10 +9,12 @@ class StartWorkoutScreen extends StatefulWidget {
     super.key,
     required this.database,
     required this.onWorkoutStarted,
+    this.onWorkoutSessionDeleted,
   });
 
   final AppDatabase database;
   final Future<void> Function(int workoutSessionId) onWorkoutStarted;
+  final void Function(int workoutSessionId)? onWorkoutSessionDeleted;
 
   @override
   State<StartWorkoutScreen> createState() => _StartWorkoutScreenState();
@@ -22,6 +24,7 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
   bool _showContinueList = false;
   int? _selectedWorkoutSessionId;
   bool _isContinuingWorkout = false;
+  final Set<int> _deletingWorkoutSessionIds = <int>{};
 
   @override
   Widget build(BuildContext context) {
@@ -105,25 +108,126 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
                             final session = unfinished[index];
                             final isSelected = session.workoutSessionId ==
                                 _selectedWorkoutSessionId;
+                            final isDeleting = _deletingWorkoutSessionIds.contains(
+                              session.workoutSessionId,
+                            );
                             return Card(
-                              child: RadioListTile<int>(
-                                value: session.workoutSessionId,
-                                groupValue: _selectedWorkoutSessionId,
-                                onChanged: _isContinuingWorkout
+                              child: ListTile(
+                                onTap: _isContinuingWorkout || isDeleting
                                     ? null
-                                    : (value) {
-                                        if (value == null) {
-                                          return;
-                                        }
+                                    : () {
                                         setState(() {
-                                          _selectedWorkoutSessionId = value;
+                                          _selectedWorkoutSessionId =
+                                              session.workoutSessionId;
                                         });
                                       },
+                                leading: Radio<int>(
+                                  value: session.workoutSessionId,
+                                  groupValue: _selectedWorkoutSessionId,
+                                  onChanged: _isContinuingWorkout || isDeleting
+                                      ? null
+                                      : (value) {
+                                          if (value == null) {
+                                            return;
+                                          }
+                                          setState(() {
+                                            _selectedWorkoutSessionId = value;
+                                          });
+                                        },
+                                ),
                                 title: Text(session.workoutName),
-                                subtitle: Text(
-                                  '${_formatDateTime(session.performedAt)} • ${session.unfinishedExerciseCount} unfinished exercise(s)',
+                                subtitle: Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${_formatDateTime(session.performedAt)} • ${session.unfinishedExerciseCount} unfinished exercise(s)',
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: LinearProgressIndicator(
+                                              value: session.progressRatio,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text('${session.progressPercent}%'),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                                 selected: isSelected,
+                                trailing: session.validatedSetCount == 0
+                                    ? IconButton(
+                                        onPressed: isDeleting ||
+                                                _isContinuingWorkout
+                                            ? null
+                                            : () async {
+                                                final messenger =
+                                                    ScaffoldMessenger.of(
+                                                  context,
+                                                );
+                                                setState(() {
+                                                  _deletingWorkoutSessionIds.add(
+                                                    session.workoutSessionId,
+                                                  );
+                                                });
+
+                                                final deleted = await widget.database
+                                                    .deleteWorkoutSessionIfEmpty(
+                                                  session.workoutSessionId,
+                                                );
+
+                                                if (!mounted) {
+                                                  return;
+                                                }
+
+                                                setState(() {
+                                                  _deletingWorkoutSessionIds.remove(
+                                                    session.workoutSessionId,
+                                                  );
+                                                  if (deleted &&
+                                                      _selectedWorkoutSessionId ==
+                                                          session.workoutSessionId) {
+                                                    _selectedWorkoutSessionId =
+                                                        null;
+                                                  }
+                                                });
+
+                                                if (deleted) {
+                                                  widget.onWorkoutSessionDeleted
+                                                      ?.call(
+                                                    session.workoutSessionId,
+                                                  );
+                                                }
+
+                                                messenger.showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      deleted
+                                                          ? 'Workout deleted.'
+                                                          : 'Could not delete workout.',
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                        icon: isDeleting
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                ),
+                                              )
+                                            : const Icon(Icons.delete_outline),
+                                        tooltip: 'Delete workout',
+                                      )
+                                    : null,
                               ),
                             );
                           },
