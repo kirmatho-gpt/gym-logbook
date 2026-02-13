@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../data/app_database.dart';
@@ -21,18 +23,60 @@ class StartWorkoutScreen extends StatefulWidget {
 }
 
 class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
+  static const List<String> _motivationalMessages = [
+    'You’re here. Let’s make it count.',
+    'Consistency beats intensity.',
+    'One workout closer to your goal.',
+    'Show up. Do the work. Log it.',
+    'Progress starts with this session.',
+    'Train it. Track it. Improve it.',
+    'Every rep you log builds progress.',
+    'Strong sessions start with good records.',
+    'Your training, clearly logged.',
+  ];
+
   bool _showContinueList = false;
   int? _selectedWorkoutSessionId;
   bool _isContinuingWorkout = false;
   final Set<int> _deletingWorkoutSessionIds = <int>{};
+  String? _motivationalMessage;
 
   @override
   Widget build(BuildContext context) {
+    _motivationalMessage ??=
+        _motivationalMessages[math.Random().nextInt(_motivationalMessages.length)];
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.5),
+            ),
+            child: Row(
+              children: [
+                const Text('💪', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _motivationalMessage!,
+                    style: Theme.of(context).textTheme.titleSmall,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text('💪', style: TextStyle(fontSize: 20)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           FractionallySizedBox(
             widthFactor: 0.75,
             child: FilledButton(
