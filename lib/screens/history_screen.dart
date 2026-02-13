@@ -29,7 +29,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           const TabBar(
             tabs: [
               Tab(text: 'Last Month'),
-              Tab(text: 'Effort'),
+              Tab(text: 'Progress'),
             ],
           ),
           Expanded(
@@ -86,7 +86,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                     const SizedBox(height: 8),
                     for (final item in items) ...[
-                      Text(item.workoutName),
+                      Row(
+                        children: [
+                          Expanded(child: Text(item.workoutName)),
+                          if (item.isNew)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'New',
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimary,
+                                    ),
+                              ),
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         'Muscle Group: ${item.muscleGroupName} • Exercises: ${item.exercisesCount} • Total time: ${_formatDuration(item.totalTimeSeconds)}',
@@ -213,7 +237,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       }
                       if (points.isEmpty) {
                         return const Center(
-                          child: Text('No effort data for this exercise.'),
+                          child: Text('No progress data for this exercise.'),
                         );
                       }
 
@@ -225,7 +249,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Average Effort over last $_defaultEffortHistoryDays days',
+                            'Progress over last $_defaultEffortHistoryDays days',
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: 8),
@@ -233,7 +257,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             height: 240,
                             child: _EffortLineChart(
                               labels: chartSeries.labels,
-                              values: chartSeries.values,
+                              averageEffortValues:
+                                  chartSeries.averageEffortValues,
+                              totalLiftedValues: chartSeries.totalLiftedValues,
                             ),
                           ),
                         ],
@@ -260,20 +286,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final start = today.subtract(Duration(days: historyDays - 1));
 
-    final valuesByDay = <String, double>{
+    final averageEffortByDay = <String, double>{
       for (final point in points) point.dayKey: point.averageEffort,
+    };
+    final totalLiftedByDay = <String, double>{
+      for (final point in points) point.dayKey: point.totalLifted,
     };
 
     final labels = <String>[];
-    final values = <double?>[];
+    final averageEffortValues = <double?>[];
+    final totalLiftedValues = <double?>[];
     for (var i = 0; i < historyDays; i++) {
       final day = start.add(Duration(days: i));
       final dayKey = _dayKey(day);
       labels.add(dayKey);
-      values.add(valuesByDay[dayKey]);
+      averageEffortValues.add(averageEffortByDay[dayKey]);
+      totalLiftedValues.add(totalLiftedByDay[dayKey]);
     }
 
-    return _EffortChartSeries(labels: labels, values: values);
+    return _EffortChartSeries(
+      labels: labels,
+      averageEffortValues: averageEffortValues,
+      totalLiftedValues: totalLiftedValues,
+    );
   }
 
   String _dayKey(DateTime date) {
@@ -287,25 +322,31 @@ class _HistoryScreenState extends State<HistoryScreen> {
 class _EffortChartSeries {
   const _EffortChartSeries({
     required this.labels,
-    required this.values,
+    required this.averageEffortValues,
+    required this.totalLiftedValues,
   });
 
   final List<String> labels;
-  final List<double?> values;
+  final List<double?> averageEffortValues;
+  final List<double?> totalLiftedValues;
 }
 
 class _EffortLineChart extends StatelessWidget {
   const _EffortLineChart({
     required this.labels,
-    required this.values,
+    required this.averageEffortValues,
+    required this.totalLiftedValues,
   });
 
   final List<String> labels;
-  final List<double?> values;
+  final List<double?> averageEffortValues;
+  final List<double?> totalLiftedValues;
 
   @override
   Widget build(BuildContext context) {
-    if (labels.isEmpty || values.isEmpty) {
+    if (labels.isEmpty ||
+        averageEffortValues.isEmpty ||
+        totalLiftedValues.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -314,14 +355,35 @@ class _EffortLineChart extends StatelessWidget {
 
     return Column(
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _LegendItem(
+                color: Theme.of(context).colorScheme.primary,
+                label: 'Average Per Set',
+              ),
+              const SizedBox(width: 16),
+              _LegendItem(
+                color: Theme.of(context).colorScheme.tertiary,
+                label: 'Total Lifted',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
         Expanded(
           child: CustomPaint(
             size: Size.infinite,
             painter: _EffortLineChartPainter(
-              values: values,
+              leftValues: averageEffortValues,
+              rightValues: totalLiftedValues,
               axisColor: Theme.of(context).colorScheme.outline,
-              lineColor: Theme.of(context).colorScheme.primary,
-              pointColor: Theme.of(context).colorScheme.primary,
+              leftLineColor: Theme.of(context).colorScheme.primary,
+              leftPointColor: Theme.of(context).colorScheme.primary,
+              rightLineColor: Theme.of(context).colorScheme.tertiary,
+              rightPointColor: Theme.of(context).colorScheme.tertiary,
             ),
           ),
         ),
@@ -363,42 +425,49 @@ class _EffortLineChart extends StatelessWidget {
 
 class _EffortLineChartPainter extends CustomPainter {
   const _EffortLineChartPainter({
-    required this.values,
+    required this.leftValues,
+    required this.rightValues,
     required this.axisColor,
-    required this.lineColor,
-    required this.pointColor,
+    required this.leftLineColor,
+    required this.leftPointColor,
+    required this.rightLineColor,
+    required this.rightPointColor,
   });
 
-  final List<double?> values;
+  final List<double?> leftValues;
+  final List<double?> rightValues;
   final Color axisColor;
-  final Color lineColor;
-  final Color pointColor;
+  final Color leftLineColor;
+  final Color leftPointColor;
+  final Color rightLineColor;
+  final Color rightPointColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     const yTickCount = 5;
     const left = 40.0;
     const top = 8.0;
-    const right = 8.0;
+    const right = 40.0;
     const bottom = 8.0;
 
     final chartWidth = size.width - left - right;
     final chartHeight = size.height - top - bottom;
-    if (chartWidth <= 0 || chartHeight <= 0 || values.length < 2) {
+    if (chartWidth <= 0 ||
+        chartHeight <= 0 ||
+        leftValues.length < 2 ||
+        rightValues.length < 2) {
       return;
     }
 
-    final minMax = _findMinMax(values);
-    if (minMax == null) {
+    final leftMinMax = _findMinMax(leftValues);
+    final rightMinMax = _findMinMax(rightValues);
+    if (leftMinMax == null || rightMinMax == null) {
       return;
     }
 
-    var minY = minMax.$1;
-    var maxY = minMax.$2;
-    if ((maxY - minY).abs() < 0.0001) {
-      minY -= 1;
-      maxY += 1;
-    }
+    final (leftMinY, leftMaxY) = _expandRange(leftMinMax.$1, leftMinMax.$2);
+    final (rightMinY, rightMaxY) =
+        _expandRange(rightMinMax.$1, rightMinMax.$2);
 
     final axisPaint = Paint()
       ..color = axisColor
@@ -406,6 +475,11 @@ class _EffortLineChartPainter extends CustomPainter {
     canvas.drawLine(
       const Offset(left, top),
       Offset(left, top + chartHeight),
+      axisPaint,
+    );
+    canvas.drawLine(
+      Offset(left + chartWidth, top),
+      Offset(left + chartWidth, top + chartHeight),
       axisPaint,
     );
     canvas.drawLine(
@@ -422,6 +496,58 @@ class _EffortLineChartPainter extends CustomPainter {
       canvas.drawLine(Offset(left, y), Offset(left + chartWidth, y), gridPaint);
     }
 
+    _drawLineSeries(
+      canvas: canvas,
+      values: leftValues,
+      minY: leftMinY,
+      maxY: leftMaxY,
+      left: left,
+      top: top,
+      chartWidth: chartWidth,
+      chartHeight: chartHeight,
+      lineColor: leftLineColor,
+      pointColor: leftPointColor,
+    );
+    _drawLineSeries(
+      canvas: canvas,
+      values: rightValues,
+      minY: rightMinY,
+      maxY: rightMaxY,
+      left: left,
+      top: top,
+      chartWidth: chartWidth,
+      chartHeight: chartHeight,
+      lineColor: rightLineColor,
+      pointColor: rightPointColor,
+    );
+
+    for (var i = 0; i < yTickCount; i++) {
+      final ratio = i / (yTickCount - 1);
+      final y = top + (chartHeight * ratio);
+      final leftValue = leftMaxY - ((leftMaxY - leftMinY) * ratio);
+      final rightValue = rightMaxY - ((rightMaxY - rightMinY) * ratio);
+      _drawYLabelLeft(canvas, _formatLabel(leftValue), left - 6, y);
+      _drawYLabelRight(
+        canvas,
+        _formatLabel(rightValue),
+        left + chartWidth + 6,
+        y,
+      );
+    }
+  }
+
+  void _drawLineSeries({
+    required Canvas canvas,
+    required List<double?> values,
+    required double minY,
+    required double maxY,
+    required double left,
+    required double top,
+    required double chartWidth,
+    required double chartHeight,
+    required Color lineColor,
+    required Color pointColor,
+  }) {
     final linePaint = Paint()
       ..color = lineColor
       ..strokeWidth = 2
@@ -454,13 +580,6 @@ class _EffortLineChartPainter extends CustomPainter {
     if (hasPathPoint) {
       canvas.drawPath(path, linePaint);
     }
-
-    for (var i = 0; i < yTickCount; i++) {
-      final ratio = i / (yTickCount - 1);
-      final y = top + (chartHeight * ratio);
-      final value = maxY - ((maxY - minY) * ratio);
-      _drawYLabel(canvas, _formatLabel(value), left - 6, y);
-    }
   }
 
   (double, double)? _findMinMax(List<double?> data) {
@@ -479,7 +598,14 @@ class _EffortLineChartPainter extends CustomPainter {
     return (minValue, maxValue);
   }
 
-  void _drawYLabel(Canvas canvas, String text, double rightX, double centerY) {
+  (double, double) _expandRange(double minY, double maxY) {
+    if ((maxY - minY).abs() < 0.0001) {
+      return (minY - 1, maxY + 1);
+    }
+    return (minY, maxY);
+  }
+
+  void _drawYLabelLeft(Canvas canvas, String text, double rightX, double centerY) {
     final painter = TextPainter(
       text: TextSpan(
         text: text,
@@ -493,6 +619,25 @@ class _EffortLineChartPainter extends CustomPainter {
     painter.paint(canvas, offset);
   }
 
+  void _drawYLabelRight(
+    Canvas canvas,
+    String text,
+    double leftX,
+    double centerY,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(fontSize: 11, color: Colors.black54),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+
+    final offset = Offset(leftX, centerY - (painter.height / 2));
+    painter.paint(canvas, offset);
+  }
+
   String _formatLabel(double value) {
     final roundedToTen = (value / 10).round() * 10;
     return roundedToTen.toString();
@@ -500,9 +645,38 @@ class _EffortLineChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _EffortLineChartPainter oldDelegate) {
-    return oldDelegate.values != values ||
+    return oldDelegate.leftValues != leftValues ||
+        oldDelegate.rightValues != rightValues ||
         oldDelegate.axisColor != axisColor ||
-        oldDelegate.lineColor != lineColor ||
-        oldDelegate.pointColor != pointColor;
+        oldDelegate.leftLineColor != leftLineColor ||
+        oldDelegate.leftPointColor != leftPointColor ||
+        oldDelegate.rightLineColor != rightLineColor ||
+        oldDelegate.rightPointColor != rightPointColor;
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  const _LegendItem({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(99),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    );
   }
 }
