@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' as drift;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import '../data/app_database.dart';
 
@@ -62,9 +66,23 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
             },
           ),
           const SizedBox(height: 12),
-          Text(
-            'Exercises',
-            style: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Exercises',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              if (_selectedMuscleGroupId != null)
+                IconButton(
+                  tooltip: 'Add exercise',
+                  onPressed: () => _showCreateExerciseDialog(
+                    _selectedMuscleGroupId!,
+                  ),
+                  icon: const Icon(Icons.add),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
           Expanded(
@@ -202,6 +220,236 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
     final minute = value.minute.toString().padLeft(2, '0');
     return '$year-$month-$day $hour:$minute';
   }
+
+  Future<void> _showCreateExerciseDialog(int muscleGroupId) async {
+    final createdExerciseId = await showDialog<int>(
+      context: context,
+      builder: (_) => _CreateExerciseDialog(
+        database: widget.database,
+        muscleGroupId: muscleGroupId,
+      ),
+    );
+
+    if (!mounted || createdExerciseId == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedExerciseId = createdExerciseId;
+    });
+  }
+}
+
+class _CreateExerciseDialog extends StatefulWidget {
+  const _CreateExerciseDialog({
+    required this.database,
+    required this.muscleGroupId,
+  });
+
+  final AppDatabase database;
+  final int muscleGroupId;
+
+  @override
+  State<_CreateExerciseDialog> createState() => _CreateExerciseDialogState();
+}
+
+class _CreateExerciseDialogState extends State<_CreateExerciseDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _notesController;
+  String? _pickedImageFilePath;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _notesController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('New exercise'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              border: OutlineInputBorder(),
+            ),
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _notesController,
+            decoration: const InputDecoration(
+              labelText: 'Notes',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _isSaving ? null : _pickImage,
+            icon: const Icon(Icons.image_outlined),
+            label: const Text('Pick image'),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _pickedImageFilePath == null
+                ? 'No image selected'
+                : p.basename(_pickedImageFilePath!),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _isSaving ? null : _save,
+          child: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Add'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickImage() async {
+    final messenger = ScaffoldMessenger.of(context);
+    FilePickerResult? picked;
+    try {
+      picked = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+    } catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Could not open file picker: $error')),
+        );
+      }
+      return;
+    }
+
+    if (picked == null || picked.files.isEmpty) {
+      return;
+    }
+    final selectedPath = picked.files.single.path;
+    if (selectedPath == null || selectedPath.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _pickedImageFilePath = selectedPath;
+    });
+  }
+
+  Future<void> _save() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final name = _nameController.text.trim();
+    final notes = _notesController.text.trim();
+    if (name.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Exercise name is required.')),
+      );
+      return;
+    }
+
+    final nameExists = await widget.database.exerciseNameExists(name);
+    if (nameExists) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Exercise name already exists.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    int? createdExerciseId;
+    try {
+      createdExerciseId =
+          await widget.database.into(widget.database.exercises).insert(
+                ExercisesCompanion.insert(
+                  name: name,
+                  muscleGroupId: drift.Value(widget.muscleGroupId),
+                  notes: drift.Value(notes.isEmpty ? null : notes),
+                ),
+              );
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Could not create exercise.')),
+        );
+        setState(() {
+          _isSaving = false;
+        });
+      }
+      return;
+    }
+
+    if (_pickedImageFilePath != null && createdExerciseId != null) {
+      try {
+        final standardPath =
+            widget.database.buildStandardExerciseImagePath(createdExerciseId);
+        final absoluteTargetPath = _resolveProjectAssetAbsolutePath(standardPath);
+        final targetFile = File(absoluteTargetPath);
+        await targetFile.parent.create(recursive: true);
+        await File(_pickedImageFilePath!).copy(targetFile.path);
+        await widget.database.setExerciseImagePath(
+          createdExerciseId,
+          imagePath: standardPath,
+        );
+      } catch (_) {
+        if (mounted) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Exercise created, but image could not be copied.'),
+            ),
+          );
+        }
+      }
+    }
+
+    if (!mounted || createdExerciseId == null) {
+      return;
+    }
+
+    Navigator.of(context).pop(createdExerciseId);
+  }
+}
+
+String _resolveProjectAssetAbsolutePath(String relativePath) {
+  var current = Directory.current.absolute;
+  for (var i = 0; i < 6; i++) {
+    if (File(p.join(current.path, 'pubspec.yaml')).existsSync()) {
+      return p.join(current.path, relativePath);
+    }
+    final parent = current.parent;
+    if (parent.path == current.path) {
+      break;
+    }
+    current = parent;
+  }
+  return p.join(Directory.current.path, relativePath);
 }
 
 class _ExerciseImagePreview extends StatelessWidget {

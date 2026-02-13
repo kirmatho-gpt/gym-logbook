@@ -317,6 +317,26 @@ LIMIT 1
     );
   }
 
+  Future<bool> exerciseNameExists(String name) async {
+    final normalized = name.trim();
+    if (normalized.isEmpty) {
+      return false;
+    }
+
+    final row = await customSelect(
+      '''
+SELECT 1 AS found
+FROM exercises
+WHERE lower(trim(name)) = lower(trim(?))
+LIMIT 1
+''',
+      variables: [Variable<String>(normalized)],
+      readsFrom: {exercises},
+    ).getSingleOrNull();
+
+    return row != null;
+  }
+
   Future<int> createWorkoutForMuscleGroup({
     required int muscleGroupId,
     required List<int> exerciseIds,
