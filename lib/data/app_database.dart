@@ -193,7 +193,7 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'gym_logbook.sqlite'));
-    return NativeDatabase.createInBackground(file, logStatements: true);
+    return NativeDatabase.createInBackground(file, logStatements: false);
   });
 }
 
