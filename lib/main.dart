@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'data/app_database.dart';
@@ -52,6 +53,8 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
+
     return MaterialApp(
       title: 'Gym Logbook',
       theme: ThemeData(
@@ -65,7 +68,7 @@ class _MyAppState extends State<MyApp> {
           children: [
             LayoutBuilder(
               builder: (context, constraints) {
-                if (constraints.maxWidth < 600) {
+                if (isIos || constraints.maxWidth < 600) {
                   return const SizedBox.shrink();
                 }
 
@@ -118,12 +121,15 @@ class _MyAppState extends State<MyApp> {
         ),
         bottomNavigationBar: LayoutBuilder(
           builder: (context, constraints) {
-            if (constraints.maxWidth >= 600) {
+            if (!isIos && constraints.maxWidth >= 600) {
               return const SizedBox.shrink();
             }
 
             return NavigationBar(
               selectedIndex: _selectedIndex,
+              labelTextStyle: const WidgetStatePropertyAll(
+                TextStyle(fontSize: 11, height: 1),
+              ),
               onDestinationSelected: (index) {
                 setState(() {
                   _selectedIndex = index;
