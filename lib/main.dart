@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'data/app_database.dart';
-import 'data/repositories/exercise_repository.dart';
-import 'debug/debug_database_screen.dart';
 import 'screens/current_workout_screen.dart';
+import 'screens/exercises_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/start_workout_screen.dart';
 import 'state/current_workout_controller.dart';
@@ -24,8 +23,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  late final ExerciseRepository _exerciseRepository =
-      ExerciseRepository(widget.database);
   late final CurrentWorkoutController _currentWorkoutController =
       CurrentWorkoutController(database: widget.database);
   int _selectedIndex = 0;
@@ -94,8 +91,8 @@ class _MyAppState extends State<MyApp> {
                       label: Text('History'),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.bug_report),
-                      label: Text('Debug'),
+                      icon: Icon(Icons.list_alt),
+                      label: Text('Exercises'),
                     ),
                   ],
                 );
@@ -113,9 +110,7 @@ class _MyAppState extends State<MyApp> {
                   ),
                   CurrentWorkoutScreen(controller: _currentWorkoutController),
                   HistoryScreen(database: widget.database),
-                  DebugDatabaseScreen(
-                    exerciseRepository: _exerciseRepository,
-                  ),
+                  ExercisesScreen(database: widget.database),
                 ],
               ),
             ),
@@ -148,8 +143,8 @@ class _MyAppState extends State<MyApp> {
                   label: 'History',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.bug_report),
-                  label: 'Debug',
+                  icon: Icon(Icons.list_alt),
+                  label: 'Exercises',
                 ),
               ],
             );

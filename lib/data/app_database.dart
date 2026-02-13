@@ -226,6 +226,7 @@ class AppDatabase extends _$AppDatabase {
         onUpgrade: (m, from, to) async {},
         beforeOpen: (details) async {
           await _ensureSetValidatedAtColumn();
+          await _ensureExerciseImagePathColumn();
         },
       );
 
@@ -262,6 +263,57 @@ SET validated_at = COALESCE(
 )
 WHERE validated_at IS NULL;
 ''',
+    );
+  }
+
+  Future<void> _ensureExerciseImagePathColumn() async {
+    try {
+      await customStatement(
+        'ALTER TABLE exercises ADD COLUMN image_path TEXT',
+      );
+    } catch (_) {
+      // Column already exists on upgraded databases.
+    }
+  }
+
+  String buildStandardExerciseImagePath(int exerciseId) {
+    return 'assets/images/exercises/$exerciseId.png';
+  }
+
+  Future<String?> fetchExerciseImagePath(int exerciseId) async {
+    final row = await customSelect(
+      '''
+SELECT image_path
+FROM exercises
+WHERE id = ?
+LIMIT 1
+''',
+      variables: [Variable<int>(exerciseId)],
+      readsFrom: {exercises},
+    ).getSingleOrNull();
+
+    if (row == null) {
+      return null;
+    }
+
+    final rawPath = row.read<String?>('image_path')?.trim();
+    if (rawPath == null || rawPath.isEmpty) {
+      return null;
+    }
+    return rawPath;
+  }
+
+  Future<void> setExerciseImagePath(
+    int exerciseId, {
+    required String? imagePath,
+  }) async {
+    final normalized = imagePath?.trim();
+    await customStatement(
+      'UPDATE exercises SET image_path = ? WHERE id = ?',
+      [
+        if (normalized == null || normalized.isEmpty) null else normalized,
+        exerciseId,
+      ],
     );
   }
 
