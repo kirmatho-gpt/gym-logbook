@@ -301,6 +301,45 @@ WHERE validated_at IS NULL;
     });
   }
 
+  Future<int> createCustomWorkout({
+    required List<int> exerciseIds,
+    String? nameOverride,
+    DateTime? performedAt,
+  }) async {
+    return transaction(() async {
+      final baseName = nameOverride?.trim();
+      final resolvedBaseName =
+          (baseName != null && baseName.isNotEmpty) ? baseName : null;
+      final uniqueNameOverride = resolvedBaseName == null
+          ? null
+          : await _buildUniqueWorkoutSessionName(resolvedBaseName);
+
+      final workoutSessionId = await into(workoutSessions).insert(
+        WorkoutSessionsCompanion.insert(
+          workoutDefinitionId: const Value.absent(),
+          nameOverride: Value(uniqueNameOverride),
+          performedAt: performedAt ?? DateTime.now(),
+        ),
+      );
+
+      await batch((batch) {
+        batch.insertAll(
+          exerciseEntries,
+          [
+            for (var i = 0; i < exerciseIds.length; i++)
+              ExerciseEntriesCompanion.insert(
+                workoutSessionId: workoutSessionId,
+                exerciseId: exerciseIds[i],
+                sortOrder: Value(i),
+              ),
+          ],
+        );
+      });
+
+      return workoutSessionId;
+    });
+  }
+
   Future<String> _buildUniqueWorkoutSessionName(String baseName) async {
     final normalizedBaseName = _stripCounterSuffix(baseName);
     final existingRows = await (select(workoutSessions)
@@ -508,7 +547,20 @@ SELECT
   ws.id AS workout_session_id,
   date(ws.performed_at, 'unixepoch') AS day_key,
   COALESCE(NULLIF(TRIM(ws.name_override), ''), wd.name, 'Current Workout') AS workout_name,
-  COALESCE(mg.name, 'Unknown') AS muscle_group_name,
+  COALESCE(
+    (
+      SELECT group_concat(group_name, ', ')
+      FROM (
+        SELECT DISTINCT COALESCE(mg2.name, 'Unknown') AS group_name
+        FROM exercise_entries ee2
+        INNER JOIN exercises e2 ON e2.id = ee2.exercise_id
+        LEFT JOIN muscle_groups mg2 ON mg2.id = e2.muscle_group_id
+        WHERE ee2.workout_session_id = ws.id
+        ORDER BY group_name
+      )
+    ),
+    COALESCE(mg.name, 'Unknown')
+  ) AS muscle_group_name,
   COUNT(DISTINCT ee.id) AS exercises_count,
   COALESCE(
     MAX(CAST(se.validated_at AS INTEGER)) - MIN(CAST(se.validated_at AS INTEGER)),
@@ -528,6 +580,7 @@ ORDER BY day_key DESC, ws.performed_at DESC, ws.id DESC
         workoutSessions,
         workoutDefinitions,
         muscleGroups,
+        exercises,
         exerciseEntries,
         setEntries,
       },
@@ -601,53 +654,40 @@ ORDER BY day_key ASC
     int exerciseId, {
     int? excludeWorkoutSessionId,
   }) async {
-    final latestEntryQuery = select(exerciseEntries).join([
-      innerJoin(
-        workoutSessions,
-        workoutSessions.id.equalsExp(exerciseEntries.workoutSessionId),
-      ),
-    ])
-      ..where(exerciseEntries.exerciseId.equals(exerciseId));
+    final excludeSessionSql = excludeWorkoutSessionId == null ? '' : 'AND ws.id != ?';
+    final variables = <Variable>[
+      Variable<int>(exerciseId),
+      if (excludeWorkoutSessionId != null)
+        Variable<int>(excludeWorkoutSessionId),
+    ];
 
-    if (excludeWorkoutSessionId != null) {
-      latestEntryQuery.where(workoutSessions.id.isNotValue(excludeWorkoutSessionId));
-    }
+    final row = await customSelect(
+      '''
+SELECT
+  ws.performed_at AS performed_at,
+  COUNT(se.id) AS set_count,
+  MAX(se.weight) AS max_weight
+FROM exercise_entries ee
+INNER JOIN workout_sessions ws ON ws.id = ee.workout_session_id
+INNER JOIN set_entries se ON se.exercise_entry_id = ee.id
+WHERE ee.exercise_id = ?
+  $excludeSessionSql
+GROUP BY ee.id, ws.performed_at
+ORDER BY ws.performed_at DESC, ee.id DESC
+LIMIT 1
+''',
+      variables: variables,
+      readsFrom: {exerciseEntries, workoutSessions, setEntries},
+    ).getSingleOrNull();
 
-    latestEntryQuery
-      ..orderBy([
-        OrderingTerm(
-          expression: workoutSessions.performedAt,
-          mode: OrderingMode.desc,
-        ),
-        OrderingTerm(expression: exerciseEntries.id, mode: OrderingMode.desc),
-      ])
-      ..limit(1);
-
-    final latestEntryRow = await latestEntryQuery.getSingleOrNull();
-    if (latestEntryRow == null) {
-      return null;
-    }
-
-    final latestEntry = latestEntryRow.readTable(exerciseEntries);
-    final latestSession = latestEntryRow.readTable(workoutSessions);
-
-    final setCountExpression = setEntries.id.count();
-    final maxWeightExpression = setEntries.weight.max();
-    final aggregateRow = await (selectOnly(setEntries)
-          ..addColumns([setCountExpression, maxWeightExpression])
-          ..where(setEntries.exerciseEntryId.equals(latestEntry.id)))
-        .getSingle();
-
-    final setCount = aggregateRow.read(setCountExpression);
-    final maxWeight = aggregateRow.read(maxWeightExpression);
-    if (setCount == null || maxWeight == null || setCount <= 0) {
+    if (row == null) {
       return null;
     }
 
     return ExerciseLastPerformanceData(
-      performedAt: latestSession.performedAt,
-      setCount: setCount,
-      maxWeight: maxWeight,
+      performedAt: row.read<DateTime>('performed_at'),
+      setCount: row.read<int>('set_count'),
+      maxWeight: row.read<double>('max_weight'),
     );
   }
 

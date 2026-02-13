@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/app_database.dart';
+import 'custom_workout_screen.dart';
 import 'muscle_workout_screen.dart';
 
 class StartWorkoutScreen extends StatefulWidget {
@@ -44,7 +45,16 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
           ),
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: () {},
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CustomWorkoutScreen(
+                    database: widget.database,
+                    onWorkoutStarted: widget.onWorkoutStarted,
+                  ),
+                ),
+              );
+            },
             child: const Text('Custom Workout'),
           ),
           const SizedBox(height: 12),
@@ -90,7 +100,7 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
                       Expanded(
                         child: ListView.separated(
                           itemCount: unfinished.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
                           itemBuilder: (context, index) {
                             final session = unfinished[index];
                             final isSelected = session.workoutSessionId ==

@@ -89,7 +89,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       Text(item.workoutName),
                       const SizedBox(height: 2),
                       Text(
-                        'Muscle group: ${item.muscleGroupName} • Exercises: ${item.exercisesCount} • Total time: ${_formatDuration(item.totalTimeSeconds)}',
+                        'Muscle Group: ${item.muscleGroupName} • Exercises: ${item.exercisesCount} • Total time: ${_formatDuration(item.totalTimeSeconds)}',
                       ),
                       const SizedBox(height: 8),
                     ],
