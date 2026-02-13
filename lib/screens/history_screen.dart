@@ -355,16 +355,15 @@ class _EffortLineChart extends StatelessWidget {
 
     return Column(
       children: [
-        Align(
-          alignment: Alignment.centerRight,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _LegendItem(
                 color: Theme.of(context).colorScheme.primary,
                 label: 'Average Per Set',
               ),
-              const SizedBox(width: 16),
               _LegendItem(
                 color: Theme.of(context).colorScheme.tertiary,
                 label: 'Total Lifted',
