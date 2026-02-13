@@ -410,13 +410,11 @@ class CurrentWorkoutController extends ChangeNotifier {
         (item) => item.sets.any((setLine) => setLine.isValidated),
       );
       final isWorkoutFullyFinished = _exercises.every((item) => item.isFinished);
-      if (!hasValidatedAnySet && isWorkoutFullyFinished && _workoutSessionId != null) {
-        await _database.deleteWorkoutSessionIfEmpty(_workoutSessionId!);
-        _timeSinceTicker?.cancel();
-        _timeSinceTicker = null;
-        _workoutSessionId = null;
-        _workoutName = 'Current Workout';
-        _exercises = const [];
+      if (isWorkoutFullyFinished && _workoutSessionId != null) {
+        if (!hasValidatedAnySet) {
+          await _database.deleteWorkoutSessionIfEmpty(_workoutSessionId!);
+        }
+        _resetActiveWorkoutState();
       }
 
       _syncTimeSinceTicker();
@@ -427,12 +425,16 @@ class CurrentWorkoutController extends ChangeNotifier {
   }
 
   void clear() {
+    _resetActiveWorkoutState();
+    notifyListeners();
+  }
+
+  void _resetActiveWorkoutState() {
     _timeSinceTicker?.cancel();
     _timeSinceTicker = null;
     _workoutSessionId = null;
     _workoutName = 'Current Workout';
     _exercises = const [];
-    notifyListeners();
   }
 
   Future<bool> deleteCurrentWorkoutIfEmpty() async {
@@ -449,11 +451,7 @@ class CurrentWorkoutController extends ChangeNotifier {
         workoutSessionId,
       );
       if (deleted) {
-        _timeSinceTicker?.cancel();
-        _timeSinceTicker = null;
-        _workoutSessionId = null;
-        _workoutName = 'Current Workout';
-        _exercises = const [];
+        _resetActiveWorkoutState();
       }
       return deleted;
     } finally {

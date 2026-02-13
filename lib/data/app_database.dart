@@ -98,6 +98,7 @@ class WorkoutHistoryListItem {
     required this.muscleGroupName,
     required this.exercisesCount,
     required this.totalTimeSeconds,
+    required this.isNew,
   });
 
   final int workoutSessionId;
@@ -106,16 +107,19 @@ class WorkoutHistoryListItem {
   final String muscleGroupName;
   final int exercisesCount;
   final int totalTimeSeconds;
+  final bool isNew;
 }
 
 class DailyExerciseEffort {
   const DailyExerciseEffort({
     required this.dayKey,
     required this.averageEffort,
+    required this.totalLifted,
   });
 
   final String dayKey;
   final double averageEffort;
+  final double totalLifted;
 }
 
 class WorkoutDefinitions extends Table {
@@ -586,7 +590,11 @@ SELECT
   COALESCE(
     MAX(CAST(se.validated_at AS INTEGER)) - MIN(CAST(se.validated_at AS INTEGER)),
     0
-  ) AS total_time_seconds
+  ) AS total_time_seconds,
+  CASE
+    WHEN date(ws.performed_at, 'unixepoch') = date('now') THEN 1
+    ELSE 0
+  END AS is_new
 FROM workout_sessions ws
 LEFT JOIN workout_definitions wd ON wd.id = ws.workout_definition_id
 LEFT JOIN muscle_groups mg ON mg.id = wd.muscle_group_id
@@ -617,6 +625,7 @@ ORDER BY day_key DESC, ws.performed_at DESC, ws.id DESC
                   muscleGroupName: row.read<String>('muscle_group_name'),
                   exercisesCount: row.read<int>('exercises_count'),
                   totalTimeSeconds: row.read<int>('total_time_seconds'),
+                  isNew: row.read<int>('is_new') == 1,
                 ),
               )
               .toList(growable: false),
@@ -637,7 +646,8 @@ WITH per_workout AS (
   SELECT
     ws.id AS workout_session_id,
     date(ws.performed_at, 'unixepoch') AS day_key,
-    SUM(se.weight * se.repetitions) / COUNT(se.id) AS workout_effort
+    SUM(se.weight * se.repetitions) / COUNT(se.id) AS workout_effort,
+    SUM(se.weight * se.repetitions) AS workout_total_lifted
   FROM workout_sessions ws
   INNER JOIN exercise_entries ee ON ee.workout_session_id = ws.id
   INNER JOIN set_entries se ON se.exercise_entry_id = ee.id
@@ -647,7 +657,8 @@ WITH per_workout AS (
 )
 SELECT
   day_key,
-  CAST(AVG(workout_effort) AS REAL) AS average_effort
+  CAST(AVG(workout_effort) AS REAL) AS average_effort,
+  CAST(SUM(workout_total_lifted) AS REAL) AS total_lifted
 FROM per_workout
 GROUP BY day_key
 ORDER BY day_key ASC
@@ -665,6 +676,7 @@ ORDER BY day_key ASC
                 (row) => DailyExerciseEffort(
                   dayKey: row.read<String>('day_key'),
                   averageEffort: row.read<double>('average_effort'),
+                  totalLifted: row.read<double>('total_lifted'),
                 ),
               )
               .toList(growable: false),
