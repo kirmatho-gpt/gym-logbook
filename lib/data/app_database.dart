@@ -122,6 +122,18 @@ class DailyExerciseEffort {
   final double totalLifted;
 }
 
+class AppSettingsData {
+  const AppSettingsData({
+    required this.defaultSets,
+    required this.defaultReps,
+    required this.historyDays,
+  });
+
+  final int defaultSets;
+  final int defaultReps;
+  final int historyDays;
+}
+
 class WorkoutDefinitions extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
@@ -227,6 +239,7 @@ class AppDatabase extends _$AppDatabase {
         beforeOpen: (details) async {
           await _ensureSetValidatedAtColumn();
           await _ensureExerciseImagePathColumn();
+          await _ensureAppSettingsTable();
         },
       );
 
@@ -274,6 +287,66 @@ WHERE validated_at IS NULL;
     } catch (_) {
       // Column already exists on upgraded databases.
     }
+  }
+
+  Future<void> _ensureAppSettingsTable() async {
+    await customStatement(
+      '''
+CREATE TABLE IF NOT EXISTS app_settings (
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  default_sets INTEGER NOT NULL DEFAULT 4,
+  default_reps INTEGER NOT NULL DEFAULT 4,
+  history_days INTEGER NOT NULL DEFAULT 30
+)
+''',
+    );
+    await customStatement(
+      '''
+INSERT OR IGNORE INTO app_settings (id, default_sets, default_reps, history_days)
+VALUES (1, 4, 4, 30)
+''',
+    );
+  }
+
+  Future<AppSettingsData> loadAppSettings() async {
+    await _ensureAppSettingsTable();
+    final row = await customSelect(
+      '''
+SELECT default_sets, default_reps, history_days
+FROM app_settings
+WHERE id = 1
+LIMIT 1
+''',
+    ).getSingle();
+
+    final defaultSets = (row.read<int>('default_sets')).clamp(1, 20).toInt();
+    final defaultReps = (row.read<int>('default_reps')).clamp(1, 100).toInt();
+    final historyDays = (row.read<int>('history_days')).clamp(1, 365).toInt();
+    return AppSettingsData(
+      defaultSets: defaultSets,
+      defaultReps: defaultReps,
+      historyDays: historyDays,
+    );
+  }
+
+  Future<void> saveAppSettings({
+    required int defaultSets,
+    required int defaultReps,
+    required int historyDays,
+  }) async {
+    await _ensureAppSettingsTable();
+    await customStatement(
+      '''
+UPDATE app_settings
+SET default_sets = ?, default_reps = ?, history_days = ?
+WHERE id = 1
+''',
+      [
+        defaultSets.clamp(1, 20).toInt(),
+        defaultReps.clamp(1, 100).toInt(),
+        historyDays.clamp(1, 365).toInt(),
+      ],
+    );
   }
 
   String buildStandardExerciseImagePath(int exerciseId) {

@@ -15,10 +15,26 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  static const int _defaultEffortHistoryDays = 30;
+  int _effortHistoryDays = 30;
 
   int? _selectedMuscleGroupId;
   int? _selectedExerciseId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await widget.database.loadAppSettings();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _effortHistoryDays = settings.historyDays;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +255,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 : StreamBuilder<List<DailyExerciseEffort>>(
                     stream: widget.database.watchDailyAverageEffortForExercise(
                       _selectedExerciseId!,
-                      historyDays: _defaultEffortHistoryDays,
+                      historyDays: _effortHistoryDays,
                     ),
                     builder: (context, snapshot) {
                       final points =
@@ -259,13 +275,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
                       final chartSeries = _buildEffortChartSeries(
                         points,
-                        _defaultEffortHistoryDays,
+                        _effortHistoryDays,
                       );
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Progress over last $_defaultEffortHistoryDays days',
+                            'Progress over last $_effortHistoryDays days',
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: 8),
@@ -480,7 +496,7 @@ class _SingleMetricLineChart extends StatelessWidget {
     if (parts.length != 3) {
       return value;
     }
-    return '${parts[1]}/${parts[2]}';
+    return '${parts[2]}/${parts[1]}';
   }
 }
 

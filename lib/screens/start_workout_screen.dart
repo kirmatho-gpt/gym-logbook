@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../data/app_database.dart';
 import 'custom_workout_screen.dart';
 import 'muscle_workout_screen.dart';
+import 'settings_screen.dart';
 
 class StartWorkoutScreen extends StatefulWidget {
   const StartWorkoutScreen({
@@ -48,9 +49,11 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
 
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Stack(
         children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
           Align(
             alignment: Alignment.center,
             child: FractionallySizedBox(
@@ -372,6 +375,23 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
               ),
             ),
           ],
+        ],
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: FloatingActionButton.small(
+              tooltip: 'Settings',
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SettingsScreen(database: widget.database),
+                  ),
+                );
+              },
+              child: const Icon(Icons.settings),
+            ),
+          ),
         ],
       ),
     );

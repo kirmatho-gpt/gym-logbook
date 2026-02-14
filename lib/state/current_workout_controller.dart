@@ -124,6 +124,8 @@ class CurrentWorkoutController extends ChangeNotifier {
   String _workoutName = 'Current Workout';
   bool _isSavingSet = false;
   List<CurrentWorkoutExerciseState> _exercises = const [];
+  int _defaultSets = 4;
+  int _defaultRepetitions = 4;
 
   int? get workoutSessionId => _workoutSessionId;
   String get workoutName => _workoutName;
@@ -144,6 +146,9 @@ class CurrentWorkoutController extends ChangeNotifier {
     }
 
     final data = await _database.loadCurrentWorkoutSessionData(workoutSessionId);
+    final settings = await _database.loadAppSettings();
+    _defaultSets = settings.defaultSets;
+    _defaultRepetitions = settings.defaultReps;
 
     _workoutSessionId = workoutSessionId;
     _workoutName = data.workoutName;
@@ -165,8 +170,8 @@ class CurrentWorkoutController extends ChangeNotifier {
                     ),
                 ]
               : List<WorkoutSetState>.generate(
-                  4,
-                  (_) => const WorkoutSetState(repetitions: 8),
+                  _defaultSets,
+                  (_) => WorkoutSetState(repetitions: _defaultRepetitions),
                   growable: false,
                 );
 
@@ -189,7 +194,7 @@ class CurrentWorkoutController extends ChangeNotifier {
   }
 
   void setTargetSets(int exerciseId, int setsCount) {
-    _exercises = _freezeRunningTimers(_exercises)
+    _exercises = _exercises
         .map(
           (exercise) {
             if (exercise.exerciseId != exerciseId) {
@@ -220,7 +225,7 @@ class CurrentWorkoutController extends ChangeNotifier {
                 ...currentSets,
                 ...List<WorkoutSetState>.generate(
                   nextCount - currentSets.length,
-                  (_) => const WorkoutSetState(repetitions: 8),
+                  (_) => WorkoutSetState(repetitions: _defaultRepetitions),
                   growable: false,
                 ),
               ],
@@ -228,7 +233,6 @@ class CurrentWorkoutController extends ChangeNotifier {
           },
         )
         .toList(growable: false);
-    _syncTimeSinceTicker();
     notifyListeners();
   }
 
@@ -236,7 +240,7 @@ class CurrentWorkoutController extends ChangeNotifier {
     required int exerciseId,
     required double delta,
   }) {
-    _exercises = _freezeRunningTimers(_exercises)
+    _exercises = _exercises
         .map(
           (exercise) {
             if (exercise.exerciseId != exerciseId) {
@@ -252,7 +256,6 @@ class CurrentWorkoutController extends ChangeNotifier {
           },
         )
         .toList(growable: false);
-    _syncTimeSinceTicker();
     notifyListeners();
   }
 
@@ -261,7 +264,7 @@ class CurrentWorkoutController extends ChangeNotifier {
     required int setIndex,
     required int delta,
   }) {
-    _exercises = _freezeRunningTimers(_exercises)
+    _exercises = _exercises
         .map(
           (exercise) {
             if (exercise.exerciseId != exerciseId ||
@@ -287,7 +290,6 @@ class CurrentWorkoutController extends ChangeNotifier {
           },
         )
         .toList(growable: false);
-    _syncTimeSinceTicker();
     notifyListeners();
   }
 
@@ -466,23 +468,6 @@ class CurrentWorkoutController extends ChangeNotifier {
       return DateTime.now().difference(exercise.timerStartedAt!);
     }
     return existing;
-  }
-
-  List<CurrentWorkoutExerciseState> _freezeRunningTimers(
-    List<CurrentWorkoutExerciseState> source,
-  ) {
-    return source
-        .map((exercise) {
-          if (!exercise.isTimeSinceRunning) {
-            return exercise;
-          }
-          return exercise.copyWith(
-            timeSinceLastValidation: _finalizeElapsed(exercise),
-            isTimeSinceRunning: false,
-            clearTimerStartedAt: true,
-          );
-        })
-        .toList(growable: false);
   }
 
   void _syncTimeSinceTicker() {

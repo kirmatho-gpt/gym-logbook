@@ -15,6 +15,11 @@ class CurrentWorkoutScreen extends StatelessWidget {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
+        final compact = MediaQuery.sizeOf(context).width < 430;
+        final controlIconSize = compact ? 18.0 : 24.0;
+        final controlTextStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          fontSize: compact ? 12 : null,
+        );
         if (!controller.hasActiveWorkout) {
           return const Center(
             child: Text('No active workout. Start one from Start Workout.'),
@@ -66,6 +71,10 @@ class CurrentWorkoutScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Expanded(
                 child: ListView.separated(
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  padding: const EdgeInsets.only(bottom: 24),
                   itemCount: controller.exercises.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
@@ -83,7 +92,7 @@ class CurrentWorkoutScreen extends StatelessWidget {
                         ),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(14),
+                        padding: EdgeInsets.all(compact ? 10 : 14),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -95,9 +104,9 @@ class CurrentWorkoutScreen extends StatelessWidget {
                             Text(lastInfo),
                             const SizedBox(height: 12),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: compact ? 8 : 12,
+                                vertical: compact ? 8 : 10,
                               ),
                               decoration: BoxDecoration(
                                 border: Border.all(
@@ -114,7 +123,7 @@ class CurrentWorkoutScreen extends StatelessWidget {
                               ),
                               child: Row(
                                 children: [
-                                  const Text('Sets:'),
+                                  Text('Sets:', style: controlTextStyle),
                                   IconButton(
                                     onPressed: exercise.isFinished
                                         ? null
@@ -125,8 +134,17 @@ class CurrentWorkoutScreen extends StatelessWidget {
                                             );
                                           },
                                     icon: const Icon(Icons.remove_circle_outline),
+                                    iconSize: controlIconSize,
+                                    visualDensity: compact
+                                        ? VisualDensity.compact
+                                        : null,
+                                    padding: EdgeInsets.zero,
+                                    constraints: BoxConstraints.tightFor(
+                                      width: compact ? 28 : 40,
+                                      height: compact ? 28 : 40,
+                                    ),
                                   ),
-                                  Text('${exercise.sets.length}'),
+                                  Text('${exercise.sets.length}', style: controlTextStyle),
                                   IconButton(
                                     onPressed: exercise.isFinished
                                         ? null
@@ -137,9 +155,18 @@ class CurrentWorkoutScreen extends StatelessWidget {
                                             );
                                           },
                                     icon: const Icon(Icons.add_circle_outline),
+                                    iconSize: controlIconSize,
+                                    visualDensity: compact
+                                        ? VisualDensity.compact
+                                        : null,
+                                    padding: EdgeInsets.zero,
+                                    constraints: BoxConstraints.tightFor(
+                                      width: compact ? 28 : 40,
+                                      height: compact ? 28 : 40,
+                                    ),
                                   ),
                                   const Spacer(),
-                                  const Text('Weight:'),
+                                  Text('Weight:', style: controlTextStyle),
                                   IconButton(
                                     onPressed: exercise.isFinished
                                         ? null
@@ -150,9 +177,19 @@ class CurrentWorkoutScreen extends StatelessWidget {
                                             );
                                           },
                                     icon: const Icon(Icons.remove_circle_outline),
+                                    iconSize: controlIconSize,
+                                    visualDensity: compact
+                                        ? VisualDensity.compact
+                                        : null,
+                                    padding: EdgeInsets.zero,
+                                    constraints: BoxConstraints.tightFor(
+                                      width: compact ? 28 : 40,
+                                      height: compact ? 28 : 40,
+                                    ),
                                   ),
                                   Text(
                                     '${exercise.configuredWeight.toStringAsFixed(1)} kg',
+                                    style: controlTextStyle,
                                   ),
                                   IconButton(
                                     onPressed: exercise.isFinished
@@ -164,6 +201,15 @@ class CurrentWorkoutScreen extends StatelessWidget {
                                             );
                                           },
                                     icon: const Icon(Icons.add_circle_outline),
+                                    iconSize: controlIconSize,
+                                    visualDensity: compact
+                                        ? VisualDensity.compact
+                                        : null,
+                                    padding: EdgeInsets.zero,
+                                    constraints: BoxConstraints.tightFor(
+                                      width: compact ? 28 : 40,
+                                      height: compact ? 28 : 40,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -178,93 +224,140 @@ class CurrentWorkoutScreen extends StatelessWidget {
 
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: isLocked
-                                            ? Colors.green.shade300
-                                            : Colors.transparent,
-                                        width: isLocked ? 1.5 : 0,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        SizedBox(
-                                          width: 56,
-                                          child: Text('Set ${setIndex + 1}'),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
                                         ),
-                                        IconButton(
-                                          onPressed: isLocked
-                                              ? null
-                                              : () => controller
-                                                  .changeSetRepetitions(
-                                                    exerciseId: exercise.exerciseId,
-                                                    setIndex: setIndex,
-                                                    delta: -1,
-                                                  ),
-                                          icon: const Icon(
-                                            Icons.remove_circle_outline,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: isLocked
+                                                ? Colors.green.shade300
+                                                : Colors.transparent,
+                                            width: isLocked ? 1.5 : 0,
                                           ),
                                         ),
-                                        Text('${setLine.repetitions} reps'),
-                                        if (isLocked)
-                                          Padding(
-                                            padding:
-                                                const EdgeInsets.only(left: 8),
-                                            child: Text(
-                                              '@ ${(setLine.validatedWeight ?? exercise.configuredWeight).toStringAsFixed(1)} kg',
-                                            ),
-                                          ),
-                                        IconButton(
-                                          onPressed: isLocked
-                                              ? null
-                                              : () => controller
-                                                  .changeSetRepetitions(
-                                                    exerciseId: exercise.exerciseId,
-                                                    setIndex: setIndex,
-                                                    delta: 1,
-                                                  ),
-                                          icon: const Icon(
-                                            Icons.add_circle_outline,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        if (exercise.timeSinceLastValidation !=
-                                                null &&
-                                            exercise.timeSinceSetIndex ==
-                                                setIndex)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              right: 10,
-                                            ),
-                                            child: SizedBox(
-                                              width: 110,
+                                        child: Row(
+                                          children: [
+                                            SizedBox(
+                                              width: compact ? 44 : 56,
                                               child: Text(
-                                                'Time since ${_formatMmSs(exercise.timeSinceLastValidation!)}',
-                                                textAlign: TextAlign.right,
+                                                'Set ${setIndex + 1}',
+                                                style: controlTextStyle,
                                               ),
                                             ),
+                                            IconButton(
+                                              onPressed: isLocked
+                                                  ? null
+                                                  : () => controller
+                                                      .changeSetRepetitions(
+                                                        exerciseId:
+                                                            exercise.exerciseId,
+                                                        setIndex: setIndex,
+                                                        delta: -1,
+                                                      ),
+                                              icon: const Icon(
+                                                Icons.remove_circle_outline,
+                                              ),
+                                              iconSize: controlIconSize,
+                                              visualDensity: compact
+                                                  ? VisualDensity.compact
+                                                  : null,
+                                              padding: EdgeInsets.zero,
+                                              constraints: BoxConstraints.tightFor(
+                                                width: compact ? 28 : 40,
+                                                height: compact ? 28 : 40,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${setLine.repetitions} reps',
+                                              style: controlTextStyle,
+                                            ),
+                                            if (isLocked)
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.only(left: 8),
+                                                child: Text(
+                                                  '@ ${(setLine.validatedWeight ?? exercise.configuredWeight).toStringAsFixed(1)} kg',
+                                                  style: controlTextStyle,
+                                                ),
+                                              ),
+                                            IconButton(
+                                              onPressed: isLocked
+                                                  ? null
+                                                  : () => controller
+                                                      .changeSetRepetitions(
+                                                        exerciseId:
+                                                            exercise.exerciseId,
+                                                        setIndex: setIndex,
+                                                        delta: 1,
+                                                      ),
+                                              icon: const Icon(
+                                                Icons.add_circle_outline,
+                                              ),
+                                              iconSize: controlIconSize,
+                                              visualDensity: compact
+                                                  ? VisualDensity.compact
+                                                  : null,
+                                              padding: EdgeInsets.zero,
+                                              constraints: BoxConstraints.tightFor(
+                                                width: compact ? 28 : 40,
+                                                height: compact ? 28 : 40,
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            FilledButton(
+                                              onPressed: isLocked ||
+                                                      controller.isSavingSet ||
+                                                      exercise.isFinished
+                                                  ? null
+                                                  : () => controller.validateSet(
+                                                        exerciseId:
+                                                            exercise.exerciseId,
+                                                        setIndex: setIndex,
+                                                      ),
+                                              style: compact
+                                                  ? FilledButton.styleFrom(
+                                                      minimumSize: const Size(0, 32),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 6,
+                                                      ),
+                                                      visualDensity:
+                                                          VisualDensity.compact,
+                                                    )
+                                                  : null,
+                                              child: Text(
+                                                isLocked ? 'Validated' : 'Validate',
+                                                style: compact
+                                                    ? const TextStyle(fontSize: 12)
+                                                    : null,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (exercise.timeSinceLastValidation != null &&
+                                          exercise.timeSinceSetIndex == setIndex)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 4,
+                                            right: 4,
                                           ),
-                                        FilledButton(
-                                          onPressed: isLocked ||
-                                                  controller.isSavingSet ||
-                                                  exercise.isFinished
-                                              ? null
-                                              : () => controller.validateSet(
-                                                    exerciseId: exercise.exerciseId,
-                                                    setIndex: setIndex,
-                                                  ),
-                                          child: Text(
-                                            isLocked ? 'Validated' : 'Validate',
+                                          child: Align(
+                                            alignment: Alignment.centerRight,
+                                            child: Text(
+                                              'Time since ${_formatMmSs(exercise.timeSinceLastValidation!)}',
+                                              style: controlTextStyle,
+                                            ),
                                           ),
                                         ),
-                                      ],
-                                    ),
+                                    ],
                                   ),
                                 );
                               },
@@ -272,21 +365,9 @@ class CurrentWorkoutScreen extends StatelessWidget {
                             const SizedBox(height: 4),
                             Align(
                               alignment: Alignment.centerRight,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  if (exercise.timeSinceLastValidation != null &&
-                                      exercise.timeSinceSetIndex == null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 10),
-                                      child: SizedBox(
-                                        width: 110,
-                                        child: Text(
-                                          'Time since ${_formatMmSs(exercise.timeSinceLastValidation!)}',
-                                          textAlign: TextAlign.right,
-                                        ),
-                                      ),
-                                    ),
                                   FilledButton(
                                     onPressed: exercise.isFinished ||
                                             controller.isSavingSet
@@ -294,12 +375,35 @@ class CurrentWorkoutScreen extends StatelessWidget {
                                         : () => controller.finishExercise(
                                               exercise.exerciseId,
                                             ),
+                                    style: compact
+                                        ? FilledButton.styleFrom(
+                                            minimumSize: const Size(0, 32),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
+                                            ),
+                                            visualDensity: VisualDensity.compact,
+                                          )
+                                        : null,
                                     child: Text(
                                       exercise.isFinished
                                           ? 'Finished'
                                           : 'Finish Exercise',
+                                      style: compact
+                                          ? const TextStyle(fontSize: 12)
+                                          : null,
                                     ),
                                   ),
+                                  if (exercise.timeSinceLastValidation != null &&
+                                      exercise.timeSinceSetIndex == null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        'Time since ${_formatMmSs(exercise.timeSinceLastValidation!)}',
+                                        style: controlTextStyle,
+                                        textAlign: TextAlign.right,
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
