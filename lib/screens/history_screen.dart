@@ -270,8 +270,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ),
                           const SizedBox(height: 8),
                           SizedBox(
-                            height: 240,
-                            child: _EffortLineChart(
+                            height: 360,
+                            child: _ProgressLineCharts(
                               labels: chartSeries.labels,
                               averageEffortValues:
                                   chartSeries.averageEffortValues,
@@ -371,8 +371,8 @@ class _EffortChartSeries {
   final List<double?> totalLiftedValues;
 }
 
-class _EffortLineChart extends StatelessWidget {
-  const _EffortLineChart({
+class _ProgressLineCharts extends StatelessWidget {
+  const _ProgressLineCharts({
     required this.labels,
     required this.averageEffortValues,
     required this.totalLiftedValues,
@@ -390,39 +390,61 @@ class _EffortLineChart extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final textTheme = Theme.of(context).textTheme.bodySmall;
-    final tickIndexes = _buildTickIndexes(labels.length, tickCount: 5);
-
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _LegendItem(
-                color: Theme.of(context).colorScheme.primary,
-                label: 'Average Per Set',
-              ),
-              _LegendItem(
-                color: Theme.of(context).colorScheme.tertiary,
-                label: 'Total Lifted',
-              ),
-            ],
+        Expanded(
+          child: _SingleMetricLineChart(
+            labels: labels,
+            values: averageEffortValues,
+            lineColor: Theme.of(context).colorScheme.primary,
+            title: 'Average Per Set',
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 12),
+        Expanded(
+          child: _SingleMetricLineChart(
+            labels: labels,
+            values: totalLiftedValues,
+            lineColor: Theme.of(context).colorScheme.tertiary,
+            title: 'Total Lifted',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SingleMetricLineChart extends StatelessWidget {
+  const _SingleMetricLineChart({
+    required this.labels,
+    required this.values,
+    required this.lineColor,
+    required this.title,
+  });
+
+  final List<String> labels;
+  final List<double?> values;
+  final Color lineColor;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme.bodySmall;
+    final tickIndexes = _buildTickIndexes(labels.length, tickCount: 5);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 4),
         Expanded(
           child: CustomPaint(
             size: Size.infinite,
-            painter: _EffortLineChartPainter(
-              leftValues: averageEffortValues,
-              rightValues: totalLiftedValues,
+            painter: _SingleMetricLineChartPainter(
+              values: values,
+              xTickIndexes: tickIndexes,
               axisColor: Theme.of(context).colorScheme.outline,
-              leftLineColor: Theme.of(context).colorScheme.primary,
-              leftPointColor: Theme.of(context).colorScheme.primary,
-              rightLineColor: Theme.of(context).colorScheme.tertiary,
-              rightPointColor: Theme.of(context).colorScheme.tertiary,
+              lineColor: lineColor,
+              pointColor: lineColor,
             ),
           ),
         ),
@@ -462,51 +484,41 @@ class _EffortLineChart extends StatelessWidget {
   }
 }
 
-class _EffortLineChartPainter extends CustomPainter {
-  const _EffortLineChartPainter({
-    required this.leftValues,
-    required this.rightValues,
+class _SingleMetricLineChartPainter extends CustomPainter {
+  const _SingleMetricLineChartPainter({
+    required this.values,
+    required this.xTickIndexes,
     required this.axisColor,
-    required this.leftLineColor,
-    required this.leftPointColor,
-    required this.rightLineColor,
-    required this.rightPointColor,
+    required this.lineColor,
+    required this.pointColor,
   });
 
-  final List<double?> leftValues;
-  final List<double?> rightValues;
+  final List<double?> values;
+  final List<int> xTickIndexes;
   final Color axisColor;
-  final Color leftLineColor;
-  final Color leftPointColor;
-  final Color rightLineColor;
-  final Color rightPointColor;
+  final Color lineColor;
+  final Color pointColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     const yTickCount = 5;
     const left = 40.0;
     const top = 8.0;
-    const right = 40.0;
-    const bottom = 8.0;
+    const right = 8.0;
+    const bottom = 12.0;
 
     final chartWidth = size.width - left - right;
-    final chartHeight = size.height - top - bottom;
-    if (chartWidth <= 0 ||
-        chartHeight <= 0 ||
-        leftValues.length < 2 ||
-        rightValues.length < 2) {
+    final chartHeight = size.height - top - bottom - 2;
+    if (chartWidth <= 0 || chartHeight <= 0 || values.length < 2) {
       return;
     }
 
-    final leftMinMax = _findMinMax(leftValues);
-    final rightMinMax = _findMinMax(rightValues);
-    if (leftMinMax == null || rightMinMax == null) {
+    final minMax = _findMinMax(values);
+    if (minMax == null) {
       return;
     }
 
-    final (leftMinY, leftMaxY) = _expandRange(leftMinMax.$1, leftMinMax.$2);
-    final (rightMinY, rightMaxY) =
-        _expandRange(rightMinMax.$1, rightMinMax.$2);
+    final (minY, maxY) = _expandRange(minMax.$1, minMax.$2);
 
     final axisPaint = Paint()
       ..color = axisColor
@@ -517,15 +529,22 @@ class _EffortLineChartPainter extends CustomPainter {
       axisPaint,
     );
     canvas.drawLine(
-      Offset(left + chartWidth, top),
-      Offset(left + chartWidth, top + chartHeight),
-      axisPaint,
-    );
-    canvas.drawLine(
       Offset(left, top + chartHeight),
       Offset(left + chartWidth, top + chartHeight),
       axisPaint,
     );
+
+    for (final index in xTickIndexes) {
+      if (index < 0 || index >= values.length) {
+        continue;
+      }
+      final x = left + chartWidth * (index / (values.length - 1));
+      canvas.drawLine(
+        Offset(x, top + chartHeight),
+        Offset(x, top + chartHeight + 4),
+        axisPaint,
+      );
+    }
 
     final gridPaint = Paint()
       ..color = axisColor.withAlpha(70)
@@ -537,41 +556,22 @@ class _EffortLineChartPainter extends CustomPainter {
 
     _drawLineSeries(
       canvas: canvas,
-      values: leftValues,
-      minY: leftMinY,
-      maxY: leftMaxY,
+      values: values,
+      minY: minY,
+      maxY: maxY,
       left: left,
       top: top,
       chartWidth: chartWidth,
       chartHeight: chartHeight,
-      lineColor: leftLineColor,
-      pointColor: leftPointColor,
-    );
-    _drawLineSeries(
-      canvas: canvas,
-      values: rightValues,
-      minY: rightMinY,
-      maxY: rightMaxY,
-      left: left,
-      top: top,
-      chartWidth: chartWidth,
-      chartHeight: chartHeight,
-      lineColor: rightLineColor,
-      pointColor: rightPointColor,
+      lineColor: lineColor,
+      pointColor: pointColor,
     );
 
     for (var i = 0; i < yTickCount; i++) {
       final ratio = i / (yTickCount - 1);
       final y = top + (chartHeight * ratio);
-      final leftValue = leftMaxY - ((leftMaxY - leftMinY) * ratio);
-      final rightValue = rightMaxY - ((rightMaxY - rightMinY) * ratio);
-      _drawYLabelLeft(canvas, _formatLabel(leftValue), left - 6, y);
-      _drawYLabelRight(
-        canvas,
-        _formatLabel(rightValue),
-        left + chartWidth + 6,
-        y,
-      );
+      final value = maxY - ((maxY - minY) * ratio);
+      _drawYLabelLeft(canvas, _formatLabel(value), left - 6, y);
     }
   }
 
@@ -648,7 +648,7 @@ class _EffortLineChartPainter extends CustomPainter {
     final painter = TextPainter(
       text: TextSpan(
         text: text,
-        style: const TextStyle(fontSize: 11, color: Colors.black54),
+        style: TextStyle(fontSize: 11, color: axisColor.withAlpha(230)),
       ),
       textDirection: TextDirection.ltr,
       maxLines: 1,
@@ -658,64 +658,17 @@ class _EffortLineChartPainter extends CustomPainter {
     painter.paint(canvas, offset);
   }
 
-  void _drawYLabelRight(
-    Canvas canvas,
-    String text,
-    double leftX,
-    double centerY,
-  ) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: const TextStyle(fontSize: 11, color: Colors.black54),
-      ),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-    )..layout();
-
-    final offset = Offset(leftX, centerY - (painter.height / 2));
-    painter.paint(canvas, offset);
-  }
-
   String _formatLabel(double value) {
     final roundedToTen = (value / 10).round() * 10;
     return roundedToTen.toString();
   }
 
   @override
-  bool shouldRepaint(covariant _EffortLineChartPainter oldDelegate) {
-    return oldDelegate.leftValues != leftValues ||
-        oldDelegate.rightValues != rightValues ||
+  bool shouldRepaint(covariant _SingleMetricLineChartPainter oldDelegate) {
+    return oldDelegate.values != values ||
+        oldDelegate.xTickIndexes != xTickIndexes ||
         oldDelegate.axisColor != axisColor ||
-        oldDelegate.leftLineColor != leftLineColor ||
-        oldDelegate.leftPointColor != leftPointColor ||
-        oldDelegate.rightLineColor != rightLineColor ||
-        oldDelegate.rightPointColor != rightPointColor;
-  }
-}
-
-class _LegendItem extends StatelessWidget {
-  const _LegendItem({required this.color, required this.label});
-
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(99),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-      ],
-    );
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.pointColor != pointColor;
   }
 }
