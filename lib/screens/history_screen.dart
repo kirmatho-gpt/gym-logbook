@@ -6,9 +6,14 @@ import 'package:flutter/material.dart';
 import '../data/app_database.dart';
 
 class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key, required this.database});
+  const HistoryScreen({
+    super.key,
+    required this.database,
+    this.settingsRevision,
+  });
 
   final AppDatabase database;
+  final int? settingsRevision;
 
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
@@ -24,6 +29,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     _loadSettings();
+  }
+
+  @override
+  void didUpdateWidget(covariant HistoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldRevision = oldWidget.settingsRevision ?? 0;
+    final nextRevision = widget.settingsRevision ?? 0;
+    if (oldRevision != nextRevision) {
+      _loadSettings();
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -44,7 +59,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         children: [
           const TabBar(
             tabs: [
-              Tab(text: 'Last Month'),
+              Tab(text: 'Latest Workouts'),
               Tab(text: 'Progress'),
             ],
           ),
@@ -62,8 +77,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildLastMonthTab(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 430;
+    final dayStyle = Theme.of(context).textTheme.titleSmall;
+    final workoutNameStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontSize: compact ? 13 : null,
+    );
+    final detailsStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      fontSize: compact ? 11.5 : 12,
+    );
+
     return StreamBuilder<List<WorkoutHistoryListItem>>(
-      stream: widget.database.watchWorkoutsFromLastMonth(),
+      stream: widget.database.watchWorkoutsFromRecentDays(
+        historyDays: _effortHistoryDays,
+      ),
       builder: (context, snapshot) {
         final workouts = snapshot.data ?? const <WorkoutHistoryListItem>[];
         if (snapshot.connectionState == ConnectionState.waiting &&
@@ -71,7 +97,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (workouts.isEmpty) {
-          return const Center(child: Text('No workouts in the last month.'));
+          return Center(
+            child: Text('No workouts in the last $_effortHistoryDays days.'),
+          );
         }
 
         final byDay = <String, List<WorkoutHistoryListItem>>{};
@@ -99,24 +127,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(compact ? 10 : 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      dayKey,
-                      style: Theme.of(context).textTheme.titleMedium,
+                      _formatDayKeyDdMmYyyy(dayKey),
+                      style: dayStyle,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: compact ? 6 : 8),
                     for (final item in items) ...[
                       Row(
                         children: [
-                          Expanded(child: Text(item.workoutName)),
+                          Expanded(
+                            child: Text(
+                              item.workoutName,
+                              style: workoutNameStyle,
+                            ),
+                          ),
                           if (item.isNew)
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: compact ? 6 : 8,
+                                vertical: compact ? 1 : 2,
                               ),
                               decoration: BoxDecoration(
                                 color: Theme.of(context).colorScheme.primary,
@@ -126,6 +159,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 'New',
                                 style: Theme.of(context).textTheme.labelSmall
                                     ?.copyWith(
+                                      fontSize: compact ? 10 : null,
                                       color: Theme.of(
                                         context,
                                       ).colorScheme.onPrimary,
@@ -134,11 +168,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: compact ? 1 : 2),
                       Text(
                         'Muscle Group: ${item.muscleGroupName} • Exercises: ${item.exercisesCount} • Total time: ${_formatDuration(item.totalTimeSeconds)}',
+                        style: detailsStyle,
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: compact ? 6 : 8),
                     ],
                   ],
                 ),
@@ -281,7 +316,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Progress over last $_effortHistoryDays days',
+                            'Progress over last ${chartSeries.labels.length} day${chartSeries.labels.length == 1 ? '' : 's'}',
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: 8),
@@ -308,6 +343,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final minutes = (totalSeconds ~/ 60).toString().padLeft(2, '0');
     final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  String _formatDayKeyDdMmYyyy(String dayKey) {
+    final parts = dayKey.split('-');
+    if (parts.length != 3) {
+      return dayKey;
+    }
+    return '${parts[2]}-${parts[1]}-${parts[0]}';
   }
 
   _EffortChartSeries _buildEffortChartSeries(

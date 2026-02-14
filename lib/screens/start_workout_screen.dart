@@ -14,11 +14,13 @@ class StartWorkoutScreen extends StatefulWidget {
     required this.database,
     required this.onWorkoutStarted,
     this.onWorkoutSessionDeleted,
+    this.onSettingsSaved,
   });
 
   final AppDatabase database;
   final Future<void> Function(int workoutSessionId) onWorkoutStarted;
   final void Function(int workoutSessionId)? onWorkoutSessionDeleted;
+  final VoidCallback? onSettingsSaved;
 
   @override
   State<StartWorkoutScreen> createState() => _StartWorkoutScreenState();
@@ -164,11 +166,14 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
             child: FloatingActionButton.small(
               tooltip: 'Settings',
               onPressed: () async {
-                await Navigator.of(context).push(
+                final saved = await Navigator.of(context).push<bool>(
                   MaterialPageRoute(
                     builder: (_) => SettingsScreen(database: widget.database),
                   ),
                 );
+                if (saved == true) {
+                  widget.onSettingsSaved?.call();
+                }
               },
               child: const Icon(Icons.settings),
             ),

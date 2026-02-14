@@ -22,6 +22,11 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 430;
+    final descriptionStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      fontSize: compact ? 11.5 : 12,
+    );
+
     final muscleGroupsStream = (widget.database.select(widget.database.muscleGroups)
           ..orderBy([(tbl) => drift.OrderingTerm(expression: tbl.name)]))
         .watch();
@@ -189,8 +194,46 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
                                               return Row(
                                                 children: [
                                                   Expanded(
-                                                    child: Text(
-                                                      'Exercise ID: ${exercise.id}\nNotes: ${(exercise.notes == null || exercise.notes!.trim().isEmpty) ? '-' : exercise.notes!}\nCreated: ${_formatDateTime(exercise.createdAt)}',
+                                                    child: RichText(
+                                                      text: TextSpan(
+                                                        style: descriptionStyle,
+                                                        children: [
+                                                          const TextSpan(
+                                                            text: 'Exercise ID: ',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                          TextSpan(
+                                                            text:
+                                                                '${exercise.id}\n',
+                                                          ),
+                                                          const TextSpan(
+                                                            text: 'Notes: ',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                          TextSpan(
+                                                            text:
+                                                                '${(exercise.notes == null || exercise.notes!.trim().isEmpty) ? '-' : exercise.notes!}\n',
+                                                          ),
+                                                          const TextSpan(
+                                                            text: 'Created: ',
+                                                            style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                          TextSpan(
+                                                            text: _formatDate(
+                                                              exercise.createdAt,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
                                                   ),
                                                   const SizedBox(width: 12),
@@ -218,13 +261,11 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
     );
   }
 
-  String _formatDateTime(DateTime value) {
+  String _formatDate(DateTime value) {
     final year = value.year.toString().padLeft(4, '0');
     final month = value.month.toString().padLeft(2, '0');
     final day = value.day.toString().padLeft(2, '0');
-    final hour = value.hour.toString().padLeft(2, '0');
-    final minute = value.minute.toString().padLeft(2, '0');
-    return '$year-$month-$day $hour:$minute';
+    return '$year-$month-$day';
   }
 
   InputDecoration _dropdownDecoration(

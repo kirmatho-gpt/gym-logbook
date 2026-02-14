@@ -27,6 +27,7 @@ class _MyAppState extends State<MyApp> {
   late final CurrentWorkoutController _currentWorkoutController =
       CurrentWorkoutController(database: widget.database);
   int _selectedIndex = 0;
+  int _settingsRevision = 0;
 
   Future<void> _onWorkoutStarted(int workoutSessionId) async {
     await _currentWorkoutController.startWorkout(workoutSessionId);
@@ -42,6 +43,12 @@ class _MyAppState extends State<MyApp> {
     if (_currentWorkoutController.workoutSessionId == workoutSessionId) {
       _currentWorkoutController.clear();
     }
+  }
+
+  void _onSettingsSaved() {
+    setState(() {
+      _settingsRevision++;
+    });
   }
 
   @override
@@ -123,9 +130,13 @@ class _MyAppState extends State<MyApp> {
                     database: widget.database,
                     onWorkoutStarted: _onWorkoutStarted,
                     onWorkoutSessionDeleted: _onWorkoutSessionDeleted,
+                    onSettingsSaved: _onSettingsSaved,
                   ),
                   CurrentWorkoutScreen(controller: _currentWorkoutController),
-                  HistoryScreen(database: widget.database),
+                  HistoryScreen(
+                    database: widget.database,
+                    settingsRevision: _settingsRevision,
+                  ),
                   ExercisesScreen(database: widget.database),
                 ],
               ),

@@ -708,8 +708,11 @@ LIMIT ?
         );
   }
 
-  Stream<List<WorkoutHistoryListItem>> watchWorkoutsFromLastMonth() {
-    final since = DateTime.now().subtract(const Duration(days: 30));
+  Stream<List<WorkoutHistoryListItem>> watchWorkoutsFromRecentDays({
+    int historyDays = 30,
+  }) {
+    final safeHistoryDays = historyDays.clamp(1, 365).toInt();
+    final since = DateTime.now().subtract(Duration(days: safeHistoryDays));
 
     final query = customSelect(
       '''

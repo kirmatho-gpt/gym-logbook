@@ -25,6 +25,15 @@ class _ContinueWorkoutScreenState extends State<ContinueWorkoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 430;
+    final headerStyle = Theme.of(context).textTheme.titleSmall;
+    final titleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      fontSize: compact ? 13 : null,
+    );
+    final metaStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      fontSize: compact ? 11.5 : 12,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Continue Workout'),
@@ -56,7 +65,7 @@ class _ContinueWorkoutScreenState extends State<ContinueWorkoutScreen> {
               children: [
                 Text(
                   'Last unfinished workouts',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: headerStyle,
                 ),
                 const SizedBox(height: 8),
                 Expanded(
@@ -72,6 +81,8 @@ class _ContinueWorkoutScreenState extends State<ContinueWorkoutScreen> {
                       );
                       return Card(
                         child: ListTile(
+                          dense: true,
+                          visualDensity: compact ? VisualDensity.compact : null,
                           onTap: _isContinuingWorkout || isDeleting
                               ? null
                               : () {
@@ -94,7 +105,7 @@ class _ContinueWorkoutScreenState extends State<ContinueWorkoutScreen> {
                                     });
                                   },
                           ),
-                          title: Text(session.workoutName),
+                          title: Text(session.workoutName, style: titleStyle),
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Column(
@@ -103,6 +114,7 @@ class _ContinueWorkoutScreenState extends State<ContinueWorkoutScreen> {
                               children: [
                                 Text(
                                   '${_formatDateTime(session.performedAt)} • ${session.unfinishedExerciseCount} unfinished exercise(s)',
+                                  style: metaStyle,
                                 ),
                                 const SizedBox(height: 6),
                                 Row(
@@ -113,7 +125,10 @@ class _ContinueWorkoutScreenState extends State<ContinueWorkoutScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    Text('${session.progressPercent}%'),
+                                    Text(
+                                      '${session.progressPercent}%',
+                                      style: metaStyle,
+                                    ),
                                   ],
                                 ),
                               ],
@@ -194,6 +209,11 @@ class _ContinueWorkoutScreenState extends State<ContinueWorkoutScreen> {
                       onPressed: _isContinuingWorkout
                           ? null
                           : () => Navigator.of(context).pop(),
+                      style: compact
+                          ? TextButton.styleFrom(
+                              textStyle: const TextStyle(fontSize: 12),
+                            )
+                          : null,
                       child: const Text('Back'),
                     ),
                     const SizedBox(width: 8),
@@ -226,6 +246,13 @@ class _ContinueWorkoutScreenState extends State<ContinueWorkoutScreen> {
                                 }
                               }
                             },
+                      style: compact
+                          ? FilledButton.styleFrom(
+                              textStyle: const TextStyle(fontSize: 12),
+                              minimumSize: const Size(0, 34),
+                              visualDensity: VisualDensity.compact,
+                            )
+                          : null,
                       child: _isContinuingWorkout
                           ? const SizedBox(
                               height: 20,
