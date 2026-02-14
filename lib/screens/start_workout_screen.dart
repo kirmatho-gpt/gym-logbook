@@ -51,77 +51,117 @@ class _StartWorkoutScreenState extends State<StartWorkoutScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.5),
-            ),
-            child: Row(
-              children: [
-                const Text('💪'),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _motivationalMessage!,
-                    style: Theme.of(context).textTheme.titleSmall,
-                    textAlign: TextAlign.center,
-                  ),
+          Align(
+            alignment: Alignment.center,
+            child: FractionallySizedBox(
+              widthFactor: 0.85,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withValues(alpha: 0.5),
                 ),
-                const SizedBox(width: 8),
-                const Text('💪'),
-              ],
+                child: Row(
+                  children: [
+                    const Text('💪'),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _motivationalMessage!,
+                        style: Theme.of(context).textTheme.titleSmall,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('💪'),
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          FractionallySizedBox(
-            widthFactor: 0.75,
-            child: FilledButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => MuscleWorkoutScreen(
-                      database: widget.database,
-                      onWorkoutStarted: widget.onWorkoutStarted,
+          if (!_showContinueList)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Align(
+                      alignment: Alignment.center,
+                      child: FractionallySizedBox(
+                        widthFactor: 0.75,
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => MuscleWorkoutScreen(
+                                  database: widget.database,
+                                  onWorkoutStarted: widget.onWorkoutStarted,
+                                ),
+                              ),
+                            );
+                          },
+                          child: const Text('New Muscle Workout'),
+                        ),
+                      ),
                     ),
-                  ),
-                );
-              },
-              child: const Text('New Muscle Workout'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          FractionallySizedBox(
-            widthFactor: 0.75,
-            child: FilledButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CustomWorkoutScreen(
-                      database: widget.database,
-                      onWorkoutStarted: widget.onWorkoutStarted,
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.center,
+                      child: FractionallySizedBox(
+                        widthFactor: 0.75,
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => CustomWorkoutScreen(
+                                  database: widget.database,
+                                  onWorkoutStarted: widget.onWorkoutStarted,
+                                ),
+                              ),
+                            );
+                          },
+                          child: const Text('New Custom Workout'),
+                        ),
+                      ),
                     ),
-                  ),
-                );
-              },
-              child: const Text('New Custom Workout'),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.center,
+                      child: FractionallySizedBox(
+                        widthFactor: 0.75,
+                        child: FilledButton(
+                          onPressed: () {
+                            setState(() {
+                              _showContinueList = !_showContinueList;
+                            });
+                          },
+                          child: const Text('Continue Workout'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          FractionallySizedBox(
-            widthFactor: 0.75,
-            child: FilledButton(
-              onPressed: () {
-                setState(() {
-                  _showContinueList = !_showContinueList;
-                });
-              },
-              child: const Text('Continue Workout'),
+          if (_showContinueList)
+            Align(
+              alignment: Alignment.center,
+              child: FractionallySizedBox(
+                widthFactor: 0.75,
+                child: FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _showContinueList = !_showContinueList;
+                    });
+                  },
+                  child: const Text('Continue Workout'),
+                ),
+              ),
             ),
-          ),
           if (_showContinueList) ...[
             const SizedBox(height: 12),
             Expanded(
